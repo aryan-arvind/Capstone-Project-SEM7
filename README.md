@@ -4,9 +4,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Domain: Multi-Agent Systems](https://img.shields.io/badge/Domain-Multi--Agent%20Systems-purple.svg)]()
 
-> **Semester 7 Capstone Project**  
-> An intelligent arbitration and coordination layer for autonomous multi-agent MSME operations under shared financial and time constraints.
-
 ---
 
 ## 📌 Executive Summary
