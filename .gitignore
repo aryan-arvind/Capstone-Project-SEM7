@@ -178,3 +178,5 @@ models/*
 *.hdf5
 *.onnx
 *.pkl
+*.db
+*.sqlite
