@@ -12,7 +12,9 @@ from src.schemas import (
     SystemState,
     ArbitrationResult,
     ExecutionTier,
-    AgentType
+    AgentType,
+    DecisionStatus,
+    RoutedDecision
 )
 
 logger = logging.getLogger(__name__)
@@ -149,11 +151,73 @@ class ArbitrationEngine:
         initial_cash: float,
         allocated_cash: float
     ) -> str:
-        summary = f"Allocated ₹{allocated_cash:,.2f} out of ₹{initial_cash:,.2f} available cash. "
+        summary = f"Allocated INR {allocated_cash:,.2f} out of INR {initial_cash:,.2f} available cash. "
         if approved:
             app_titles = [f"'{r.title}' (Urgency: {r.urgency_score})" for r in approved]
             summary += f"Approved {len(approved)} action(s): {', '.join(app_titles)}. "
         if rejected:
-            rej_titles = [f"'{r.title}' (Req: ₹{r.required_cash:,.2f})" for r in rejected]
+            rej_titles = [f"'{r.title}' (Req: INR {r.required_cash:,.2f})" for r in rejected]
             summary += f"Deferred/Rejected {len(rejected)} action(s) due to liquidity bounds: {', '.join(rej_titles)}."
         return summary
+
+    def check_resource_conflicts(self, recommendations: List[Recommendation], available_cash: float) -> Tuple[bool, float, float]:
+        """
+        Checks if aggregate cash requested by agents exceeds available liquid cash.
+        Returns (has_conflict, total_cash_requested, available_cash).
+        """
+        total_requested = sum(rec.required_cash for rec in recommendations)
+        has_conflict = total_requested > available_cash
+        return has_conflict, total_requested, available_cash
+
+    def rank_recommendations(self, recommendations: List[Recommendation], available_cash: float) -> List[Recommendation]:
+        """
+        Calculates priority score for each recommendation using MCDM weighting formula
+        and returns recommendations sorted descending by MCDM score.
+        """
+        ranked = []
+        for rec in recommendations:
+            score = self.calculate_priority_score(rec)
+            rec.mcdm_score = score  # Dynamically attach score attribute for UI
+            ranked.append(rec)
+
+        ranked.sort(key=lambda r: getattr(r, "mcdm_score", 0.0), reverse=True)
+        return ranked
+
+    def route_decisions(self, ranked_recommendations: List[Recommendation], available_cash: float) -> List[RoutedDecision]:
+        """
+        Applies capital guardrails and amount capping to ranked recommendations.
+        """
+        routed: List[RoutedDecision] = []
+        remaining_cash = available_cash
+
+        for idx, rec in enumerate(ranked_recommendations):
+            dec_id = f"DEC-2026-90{idx+1}"
+            target_entity = rec.metadata.get("target_sku", rec.metadata.get("supplier_name", "Apex Metal Suppliers Ltd"))
+            setattr(rec, "target_entity_id", target_entity)
+
+            if rec.required_cash <= remaining_cash:
+                approved_amt = rec.required_cash
+                status = DecisionStatus.APPROVED
+                reasoning = f"Approved in full (INR {approved_amt:,.2f}) within liquid capital buffer."
+                remaining_cash -= approved_amt
+            elif remaining_cash > 0:
+                approved_amt = remaining_cash
+                status = DecisionStatus.MODIFIED_CAP
+                reasoning = f"Approved partial order capped at INR {approved_amt:,.2f} to protect required payroll reserve."
+                remaining_cash = 0.0
+            else:
+                approved_amt = 0.0
+                status = DecisionStatus.REJECTED_LIQUIDITY
+                reasoning = f"Deferred due to zero remaining liquid buffer."
+
+            routed.append(RoutedDecision(
+                decision_id=dec_id,
+                recommendation=rec,
+                approved_amount=approved_amt,
+                status=status,
+                reasoning=reasoning
+            ))
+
+        return routed
+
+

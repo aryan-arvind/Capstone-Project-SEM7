@@ -65,3 +65,20 @@ class ArbitrationResult:
     execution_tier: ExecutionTier
     decision_rationale: str
     priority_scores: Dict[str, float]
+
+
+class DecisionStatus(Enum):
+    APPROVED = "APPROVED"
+    MODIFIED_CAP = "MODIFIED_CAP"
+    REJECTED_LIQUIDITY = "REJECTED_LIQUIDITY"
+    HELD_IN_AUDIT = "HELD_IN_AUDIT"
+
+
+@dataclass
+class RoutedDecision:
+    decision_id: str
+    recommendation: Recommendation
+    approved_amount: float
+    status: DecisionStatus
+    reasoning: str
+

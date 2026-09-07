@@ -181,15 +181,15 @@
 <body>
   <div class="container">
 
-<h1>Master Project Blueprint & Defense Architecture</h1>
-<h2>Multi-Agent Business Decision Intelligence & Governed Agentic Commerce Platform</h2>
+<h1>Master Project Blueprint & 2nd Review Defense Architecture</h1>
+<h2>Multi-Agent Business Decision Intelligence & Governed B2B Action Execution Platform</h2>
 <hr>
 <h3>Executive Document Summary</h3>
-<p>This document serves as the <strong>definitive research-grounded master blueprint</strong> for our Capstone Project and its integrated Agentic Commerce module. It establishes:</p>
-<ol><li><strong>Literature Survey & Gap Matrix</strong>: Systematic analysis of 12 peer-reviewed papers (2025–2026) across multi-agent orchestration, financial AI, digital twins, and domain adaptation.</li><li><strong>Extended Agent Architecture</strong>: Expands core domain intelligence to include <strong>Market Intelligence</strong> and <strong>Procurement Intelligence</strong> alongside Inventory, Finance, and Operations.</li><li><strong>Deterministic Arbitration Engine</strong>: Mathematical multi-criteria decision making (MCDM) and capital guardrail routing.</li><li><strong>Governed Agentic Commerce (Razorpay Test Integration)</strong>: Explainable, bounded, gated financial action execution with SHA-256 audit logging and graceful failure handling.</li><li><strong>Evaluation Rubric Strategy</strong>: Direct mapping to score <strong>"5 - Far Exceeds Expectation"</strong> across all 5 evaluation criteria (Literature Survey, Problem Statement, System Design, Implementation/Results, Interim Report).</li><li><strong>Panel Review Task Division</strong>: Concrete 3-member work allocation (<strong>AryanT</strong>, <strong>Soham</strong>, <strong>Kohli</strong>) for tomorrow's panel demonstration and code integration.</li></ol>
+<p>This document serves as the <strong>definitive research-grounded master blueprint</strong> for our Capstone Project. It establishes:</p>
+<ol><li><strong>Literature Survey & Research Gap Matrix</strong>: Systematic synthesis of 12 peer-reviewed papers (2025–2026) across multi-agent orchestration, financial AI, digital twins, and domain adaptation.</li><li><strong>Extended Multi-Agent Architecture</strong>: Domain intelligence spanning <strong>Inventory</strong>, <strong>Finance</strong>, <strong>Operations</strong>, <strong>Market Intelligence</strong>, and <strong>Procurement Intelligence</strong>.</li><li><strong>Deterministic Arbitration Engine</strong>: Mathematical Multi-Criteria Decision Making (MCDM) weighted scoring and liquid capital guardrail routing.</li><li><strong>Governed B2B Payment Execution Module</strong>: Native financial settlement integration featuring explainable AI metadata, hard spending caps, 1-click human gating, cryptographic SHA-256 audit logging, and graceful API failure handling.</li><li><strong>2nd Review Rubric Strategy (Target: 25/25 Full Marks)</strong>: Precise alignment with the evaluation panel's 5 parameters (Literature Survey, Problem Statement, System Design, Implementation/Results >50%, Interim Report).</li><li><strong>2nd Review Task Division</strong>: Concrete work allocation across <strong>AryanT</strong>, <strong>Soham</strong>, and <strong>Kohli</strong> to demonstrate a fully integrated >50% working prototype during the panel review.</li></ol>
 <hr>
 <h2>1. Literature Survey & Systematic Research Gap Matrix</h2>
-<p>A comprehensive literature synthesis was conducted across twelve key research papers. The table below documents each study, its contribution, its limitation, and how our project bridges the identified research gaps.</p>
+<p>A comprehensive literature synthesis was conducted across twelve key research papers. The table below documents each study, its core contribution, its specific limitation, and how our project bridges the identified research gaps.</p>
 <h3>1.1 Comprehensive Literature Matrix (Papers 1–12)</h3>
 <table>
 <thead>
@@ -228,7 +228,7 @@
 <td><strong>Pendyala et al. (2026)</strong><br><em>AI Payment Orchestration (Springer)</em></td>
 <td>Identifies fraud, compliance, and routing as fragmented silos; solves with federated learning + blockchain audit.</td>
 <td>Blockchain consensus overhead is unjustified at single-SME scale; compliance checks are rule-driven underneath RL routing, not human-approved per action.</td>
-<td>Replaces public blockchain with a lightweight, local SHA-256 hash-chained log; introduces 1-click human-gated Razorpay payment execution.</td>
+<td>Replaces public blockchain with a lightweight, local SHA-256 hash-chained log; introduces 1-click human-gated payment execution.</td>
 </tr>
 <tr>
 <td><strong>P5</strong></td>
@@ -289,40 +289,40 @@
 tbody>
 </table>
 <hr>
-<h3>1.2 Research & Gap Analysis for New Extended Intelligence Domains</h3>
-<p>To address holistic business operations, we extend our agent architecture beyond internal logistics to include <strong>Market Intelligence</strong> and <strong>Procurement Intelligence</strong>.</p>
+<h3>1.2 Extended Agent Intelligence Domains</h3>
+<p>To provide a comprehensive enterprise management suite, we extend our agent architecture to include <strong>Market Intelligence</strong> and <strong>Procurement Intelligence</strong>.</p>
 <h4>A. Market Intelligence Agent</h4>
-<ul><li><strong>Domain Scope</strong>: Analyzes external market demand shifts, competitor pricing signals, product trend velocity, and macroeconomic consumer sentiment.</li><li><strong>Existing Solutions & Gaps</strong>: Current solutions (e.g., Google Trends scrapers, PriceSpider, SEMrush) operate as isolated marketing tools. They tell a business owner <em>what</em> is trending outside, but have zero visibility into internal inventory levels or cash reserves. Conversely, internal ERPs are completely blind to external market drops or demand spikes.</li><li><strong>Our Proposed Approach</strong>: The <strong>Market Intelligence Agent</strong> uses external search/pricing tools to monitor competitor prices and trend shifts. It generates a structured <code>MarketOpportunity</code> recommendation (e.g. <em>"Demand for Product Y increased 35% across competitors; increase retail price by 8% or scale stock"</em>). This recommendation is fed into the central Arbitration Engine to evaluate whether cash reserves permit capitalizing on the trend.</li></ul>
+<ul><li><strong>Domain Scope</strong>: Scans external competitor pricing signals, market demand surges, product trend velocity, and macroeconomic consumer sentiment.</li><li><strong>Existing Solutions & Gaps</strong>: Existing market scrapers (e.g., PriceSpider, SEMrush) operate as isolated marketing tools. They tell a business owner <em>what</em> is trending outside, but are completely blind to internal inventory levels or cash reserves. Conversely, internal ERPs are oblivious to external price drops or demand spikes.</li><li><strong>Our Approach</strong>: Grounded in web-search and price API tools, returning structured <code>MarketOpportunity</code> recommendations (e.g. <em>"Competitor price increased 12%; opportunity to increase retail margin by 5% or scale stock"</em>). This recommendation is arbitrated against available cash buffer to ensure financial feasibility.</li></ul>
 <h4>B. Procurement Intelligence Agent</h4>
-<ul><li><strong>Domain Scope</strong>: Analyzes supplier lead-time volatility, raw material commodity index pricing, vendor reliability scores, and minimum order quantity (MOQ) volume discounts.</li><li><strong>Existing Solutions & Gaps</strong>: Standard inventory reorder formulas (e.g., EOQ) assume static supplier lead times and fixed unit costs. In reality, supplier lead times fluctuate wildly, and vendors offer tiered volume discounts that require capital trade-offs.</li><li><strong>Our Proposed Approach</strong>: The <strong>Procurement Intelligence Agent</strong> monitors supplier performance logs and raw material market rates. Instead of simply reordering stock when depleted, it evaluates vendor risk and volume discount thresholds (e.g. <em>"Supplier B lead time degraded to 14 days; switch to Supplier A at 3% higher unit cost to prevent stockout"</em>).</li></ul>
+<ul><li><strong>Domain Scope</strong>: Analyzes supplier lead-time volatility, raw material index pricing, vendor reliability scores, and minimum order quantity (MOQ) volume discounts.</li><li><strong>Existing Solutions & Gaps</strong>: Standard inventory formulas (EOQ) assume static supplier lead times and fixed unit costs. In reality, supplier lead times fluctuate, and volume discounts require capital trade-offs.</li><li><strong>Our Approach</strong>: Evaluates vendor performance logs and raw material market rates. Instead of simply reordering when depleted, it optimizes vendor selection and order timing (e.g. <em>"Supplier B lead time degraded to 14 days; switch to Supplier A at 3% higher unit cost to prevent stockout"</em>).</li></ul>
 <hr>
 <h2>2. Problem Statement & Research Questions</h2>
 <h3>2.1 Problem Statement</h3>
 <blockquote><strong>Resource-constrained SMEs generate fragmented operational data across inventory, sales, finance, market trends, and procurement, but lack an integrated decision-support system capable of converting this data into prioritized, explainable, and executable actions. Existing multi-agent systems operate in domain silos, produce unverified numeric outputs via LLM reasoning, resolve recommendation conflicts through opaque algorithms (or leave them to owner manual labor), and present outputs through conversational chat interfaces that induce alert fatigue.</strong></blockquote>
 <h3>2.2 Formal Research Questions (RQs)</h3>
-<ul><li><strong>RQ1 (Tool-Grounded Domain Multi-Agent Reasoning)</strong>: <em>How can specialized domain agents (Inventory, Finance, Operations, Market, Procurement) be grounded in structured database context and external tools to guarantee numeric precision without hallucination?</em></li><li><strong>RQ2 (Deterministic Conflict Arbitration)</strong>: <em>How can conflicting recommendations from independent agents competing for finite liquid capital be systematically detected and arbitrated using a transparent, inspectable multi-criteria model?</em></li><li><strong>RQ3 (Non-Conversational Decision UI)</strong>: <em>How can complex multi-agent reasoning and arbitration traces be transformed into a prioritized visual decision interface without resorting to conversational free text?</em></li><li><strong>RQ4 (Governed Agentic Commerce & Auditability)</strong>: <em>How can financial execution guardrails (amount caps, human gating) and tamper-evident cryptographic audit logging be integrated into live payment gateway workflows (Razorpay)?</em></li></ul>
+<ul><li><strong>RQ1 (Tool-Grounded Domain Multi-Agent Reasoning)</strong>: <em>How can specialized domain agents (Inventory, Finance, Operations, Market, Procurement) be grounded in structured database context and external tools to guarantee numeric precision without hallucination?</em></li><li><strong>RQ2 (Deterministic Conflict Arbitration)</strong>: <em>How can conflicting recommendations from independent agents competing for finite liquid capital be systematically detected and arbitrated using a transparent, inspectable multi-criteria model?</em></li><li><strong>RQ3 (Non-Conversational Decision UI)</strong>: <em>How can complex multi-agent reasoning and arbitration traces be transformed into a prioritized visual decision interface without resorting to conversational free text?</em></li><li><strong>RQ4 (Governed B2B Action Execution & Auditability)</strong>: <em>How can financial execution guardrails (amount caps, human gating) and tamper-evident cryptographic audit logging be integrated into live payment gateway workflows?</em></li></ul>
 <hr>
-<h2>3. System Architecture & Technical Specifications</h2>
+<h2>3. 5-Layer System Architecture & Specifications</h2>
 <div class="mermaid">
 flowchart TB
 
-subgraph FE["FRONTEND LAYER — React + TypeScript"]
+subgraph FE["1. FRONTEND WORKSPACE — React + TypeScript"]
     direction LR
     F1["Onboarding Form
     (Business Profile Setup)"]
     F2["Decision Feed UI
     (Action Cards + Agent Trace)"]
     F3["Governed Payment Modal
-    (Razorpay Checkout + Failure Switch)"]
+    (B2B Checkout + Fallback Switch)"]
 end
 
-subgraph API["BACKEND API — FastAPI Layer"]
+subgraph API["2. BACKEND API — FastAPI Layer"]
     A1["/onboard"]
     A2["/agent-query"]
     A3["/action/confirm"]
 end
 
-subgraph LG["ORCHESTRATION LAYER — LangGraph State Machine"]
+subgraph LG["3. ORCHESTRATION LAYER — LangGraph State Machine"]
     direction TB
     LG1(["StateGraph Shared State
     business_profile + operational_data + rec_pool"])
@@ -348,7 +348,7 @@ subgraph LC["LANGCHAIN & TOOL GROUNDING LAYER"]
     (SQL Queries & Market APIs)"]
 end
 
-subgraph ARBE["DETERMINISTIC ARBITRATION ENGINE (Pure Python Core)"]
+subgraph ARBE["4. DETERMINISTIC ARBITRATION ENGINE (Pure Python Core)"]
     direction TB
     R1["conflict_check()
     (Pairwise Entity & Resource Over-Allocation Check)"]
@@ -360,21 +360,21 @@ subgraph ARBE["DETERMINISTIC ARBITRATION ENGINE (Pure Python Core)"]
     R1 --> R2 --> R3
 end
 
-subgraph PAY["GOVERNED AGENTIC COMMERCE MODULE"]
-    P1["Razorpay Client
+subgraph PAY["5. GOVERNED B2B ACTION EXECUTION & AUDIT LAYER"]
+    P1["Payment Gateway Client
     (Test-Mode API Orders/Links)"]
-    P2["Failure Handler
-    (Graceful Fallback & Retry State)"]
+    P2["API Fallback Handler
+    (Graceful Error & Retry State)"]
+    D3[("decision_log
+    (SHA-256 Hash-Chained Log)")]
     
     P1 <--> P2
 end
 
-subgraph DB["PERSISTENCE & AUDIT LAYER — SQLite + Hash Chain"]
+subgraph DB["PERSISTENCE LAYER — SQLite"]
     direction LR
     D1[("business_profile")]
     D2[("operational_data")]
-    D3[("decision_log
-    (SHA-256 Hash-Chained Log)")]
 end
 
 %% Connections
@@ -409,30 +409,23 @@ class D1,D2,D3 data
 </div>
 <hr>
 <h3>3.1 Mathematical Specification of the Arbitration Engine</h3>
-<p>The Arbitration Engine runs entirely in <strong>pure, unit-testable Python</strong> without LLM nondeterminism.</p>
 <h4>Algorithm 1: Resource Conflict Detection (<code>conflict_check</code>)</h4>
 <p>Given a set of $N$ agent recommendations $R = \{r_1, r_2, \dots, r_N\}$, available cash $C_{\text{avail}}$, and minimum cash reserve $C_{\text{mcr}}$:</p>
 <p>$$\text{Liquid Buffer } B = C_{\text{avail}} - C_{\text{mcr}}$$</p>
 <p>A resource conflict is flagged if:</p>
 <p>$$\sum_{i=1}^{N} \text{estimated\_cost}(r_i) > B$$</p>
-<p>Additionally, an entity conflict is flagged for any pair $(r_i, r_j)$ where $\text{entity\_id}(r_i) = \text{entity\_id}(r_j)$ and $\text{action\_type}(r_i) \neq \text{action\_type}(r_j)$.</p>
 <h4>Algorithm 2: Multi-Criteria Decision Making Score (<code>priority_rank</code>)</h4>
 <p>Each recommendation $r_i$ is evaluated against 4 normalized criteria ($0.0 - 1.0$):</p>
 <p>$$\text{Score}(r_i) = w_1 \cdot S_{\text{rev}}(r_i) + w_2 \cdot S_{\text{urg}}(r_i) + w_3 \cdot S_{\text{cash}}(r_i) + w_4 \cdot S_{\text{conf}}(r_i)$$</p>
 <p>Where:</p>
-<ul><li>$S_{\text{rev}}$: Revenue at risk / expected net gain ratio ($0.0 - 1.0$).</li><li>$S_{\text{urg}}$: Urgency score derived from days until stockout or bill deadline:</li></ul>
-<p>  $$S_{\text{urg}} = \max\left(0, 1.0 - \frac{\text{Days Remaining}}{14}\right)$$</p>
-<ul><li>$S_{\text{cash}}$: Cash buffer impact ratio:</li></ul>
-<p>  $$S_{\text{cash}} = 1.0 - \frac{\text{estimated\_cost}(r_i)}{B}$$</p>
-<ul><li>$S_{\text{conf}}$: Agent confidence score ($0.0 - 1.0$).</li><li>Weights: $w_1 = 0.40, w_2 = 0.30, w_3 = 0.20, w_4 = 0.10$ ($\sum w_k = 1.0$).</li></ul>
+<ul><li>$S_{\text{rev}}$: Revenue at risk / expected net gain ratio ($0.0 - 1.0$).</li><li>$S_{\text{urg}}$: Urgency score based on days remaining: $S_{\text{urg}} = \max(0, 1.0 - \frac{\text{Days}}{14})$.</li><li>$S_{\text{cash}}$: Cash buffer impact ratio: $S_{\text{cash}} = 1.0 - \frac{\text{estimated\_cost}(r_i)}{B}$.</li><li>$S_{\text{conf}}$: Agent confidence score ($0.0 - 1.0$).</li><li>Default Weights: $w_1 = 0.40, w_2 = 0.30, w_3 = 0.20, w_4 = 0.10$.</li></ul>
 <h4>Algorithm 3: Capital Guardrail Routing & Amount Capping (<code>decision_router</code>)</h4>
-<p>If $r_i$ is ranked #1 but $\text{estimated\_cost}(r_i) > B$, the router <strong>automatically caps the approved amount</strong>:</p>
-<p>$$\text{approved\_amount}(r_i) = B$$</p>
+<p>If $r_1$ is ranked #1 but $\text{estimated\_cost}(r_1) > B$, the router <strong>automatically caps the approved amount</strong>:</p>
+<p>$$\text{approved\_amount}(r_1) = B$$</p>
 <p>The recommendation is converted to a partial order with an explicit note: <em>"Quantity capped to INR $B$ to preserve required cash reserve $C_{\text{mcr}}$."</em></p>
 <hr>
-<h3>3.2 Governed Agentic Commerce & Razorpay Test Integration</h3>
-<p>For actions requiring monetary transactions (e.g. B2B inventory restock), the platform routes through the <strong>Governed Agentic Commerce Module</strong>:</p>
-<ol><li><strong>Explainable Payment Note</strong>: The Razorpay Order payload includes AI metadata notes:</li></ol>
+<h3>3.2 Governed B2B Action Execution & Cryptographic Audit Engine</h3>
+<ol><li><strong>Explainable Action Payload</strong>: When a decision is approved, the payment payload embeds AI metadata:</li></ol>
 <p>   <code></code>`json</p>
 <p>   {</p>
 <p>     "amount": 2000000,</p>
@@ -445,91 +438,89 @@ class D1,D2,D3 data
 <p>     }</p>
 <p>   }</p>
 <p>   <code></code>`</p>
-<ol><li><strong>Gated Approval</strong>: Payments are <strong>never executed autonomously</strong>. The UI presents a clear confirmation modal showing the capped amount, reasoning trace, and a single-click <code>[Approve & Execute via Razorpay]</code> button.</li><li><strong>SHA-256 Cryptographic Audit Log</strong>:</li></ol>
-<p>   $$\text{Hash}_k = \text{SHA-256}(\text{Hash}_{k-1} \parallel \text{Timestamp}_k \parallel \text{DecisionID}_k \parallel \text{RazorpayOrderID}_k)$$</p>
-<ol><li><strong>Graceful Failure Handling</strong>: If the Razorpay test API fails (e.g. simulated network timeout or invalid key), the module catches the exception, updates the decision status to <code>"HELD_IN_AUDIT_STATE"</code>, logs the failure payload, and displays a user-friendly recovery toast rather than crashing.</li></ol>
+<ol><li><strong>Gated Approval Modal</strong>: Actions require explicit merchant sign-off via a confirmation modal showing the capped amount, agent reasoning trace, and single-click approval button.</li><li><strong>SHA-256 Cryptographic Audit Log</strong>:</li></ol>
+<p>   $$\text{Hash}_k = \text{SHA-256}(\text{Hash}_{k-1} \parallel \text{Timestamp}_k \parallel \text{DecisionID}_k \parallel \text{TransactionID}_k)$$</p>
+<ol><li><strong>Graceful API Failure Handler</strong>: If the payment gateway API drops or returns an error, the handler catches the exception, updates decision status to <code>"HELD_IN_AUDIT_STATE"</code>, logs the error payload securely, and displays a recovery toast on the UI without crashing.</li></ol>
 <hr>
-<h2>4. Evaluation Rubric Strategy (Scoring 5/5 "Far Exceeds Expectation")</h2>
-<p>Tomorrow's evaluation panel will assess the project across 5 parameters. Below is our exact strategy to score <strong>5/5</strong> in every category.</p>
+<h2>4. 2nd Review Defense Strategy (Target: 25/25 Full Marks)</h2>
+<p>To secure <strong>25/25 full marks</strong> in Table 5.2.5 Rubrics for 2nd Review, our presentation and prototype directly fulfill every "Far Exceeds Expectation (5)" criterion.</p>
 <pre><code>┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        FACULTY EVALUATION RUBRIC STRATEGY                              │
+│                        2ND REVIEW EVALUATION RUBRIC MAPPING                            │
 ├──────────────────────────┬─────────────────────────────────────────────────────────────┤
-│ Rubric Parameter         │ How We Achieve "5 - Far Exceeds Expectation"                │
+│ Rubric Parameter         │ How We Score "Far Exceeds Expectation (5/5)"                │
 ├──────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ A. Literature Survey     │ • Present a systematic 12-paper literature matrix (2025–26).│
-│    / Market Survey (5)   │ • Explicitly map 5 cross-paper gaps to system modules.      │
-│                          │ • Include Market &amp; Procurement Intel competitive survey.    │
+│ A. Literature Survey     │ • Present systematic 12-paper literature matrix (2025–26).  │
+│    / Market Survey (5)   │ • Explicitly map 5 cross-paper gaps to system architecture. │
+│                          │ • Complete market &amp; procurement intel competitive survey.   │
 ├──────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ B. Problem Statement (5) │ • Present crisp, formal Problem Statement &amp; 4 RQs.          │
-│                          │ • Highlight the "₹40k cash vs ₹65k demand" MSME scenario.   │
+│ B. Problem Statement (5) │ • Present formal Problem Statement &amp; 4 Research Questions.  │
+│                          │ • Clear objectives with the "₹40k cash vs ₹65k demand" gap.│
 ├──────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ C. System Level          │ • Show comprehensive 5-layer Mermaid Architecture Diagram.  │
+│ C. System Level          │ • Show 5-layer Mermaid Architecture Diagram.                │
 │    Representation (5)    │ • State exact algorithms: MCDM weighted scoring &amp; SHA-256. │
-│                          │ • Display complete JSON contracts for all agent interfaces. │
+│                          │ • Present complete JSON schemas for all agent interfaces.   │
 ├──────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ D. Implementation        │ • Show working &gt;40% MVP prototype live in the panel.        │
-│    / Results (5)         │ • Demonstrate end-to-end execution: Seed Data -&gt; LangGraph  │
-│                          │   Agents -&gt; Conflict Arbitration -&gt; Action Cards -&gt; Razorpay│
-│                          │   Test Mode Order -&gt; Hash Audit Log.                         │
-│                          │ • Live failure-handling simulation toggle on UI.           │
+│ D. Implementation        │ • PROVE &gt;50% IMPLEMENTATION COMPLETED LIVE:                 │
+│    / Results (5)         │   1. Seed Data -&gt; SQLite Database operational.              │
+│                          │   2. Inventory + Finance Agents running tool queries.       │
+│                          │   3. MCDM Arbitration Engine resolving cash conflicts live. │
+│                          │   4. React Action Cards UI rendering trace &amp; payment modal. │
+│                          │   5. Payment Gateway Test Checkout + Failure Switch live.   │
 ├──────────────────────────┼─────────────────────────────────────────────────────────────┤
 │ E. Interim Report (5)    │ • Submit comprehensive Master Blueprint document.           │
-│                          │ • Outline full 12-week roadmap &amp; Phase 4 stretch goals.     │
+│                          │ • Full technical specifications &amp; 12-week roadmap included. │
 └──────────────────────────┴─────────────────────────────────────────────────────────────┘</code></pre>
 <hr>
-<h2>5. Team Work Division for Tomorrow's Panel & MVP Demonstration</h2>
-<p>To ensure AryanT can focus heavily on the <strong>Hackathon (Agentic Commerce Razorpay track)</strong> while Soham and Kohli build the backend engine and frontend UI, the workload for tonight and tomorrow's panel is divided as follows:</p>
-<pre><code>                                  TEAM WORK DIVISION
+<h2>5. 2nd Review Task Division across 3 Members (Proving >50% Build)</h2>
+<p>To demonstrate a <strong>>50% working codebase</strong> during the panel review, the implementation tasks are divided among <strong>AryanT</strong>, <strong>Soham</strong>, and <strong>Kohli</strong> as follows:</p>
+<pre><code>                                  2ND REVIEW WORK DIVISION
   ┌──────────────────────────────┬──────────────────────────────┬──────────────────────────────┐
-  │   ARYANT (Lead &amp; Commerce)   │   SOHAM (Engine &amp; Data)      │   KOHLI (Frontend &amp; UI)      │
+  │   ARYANT (Lead &amp; Settlement) │   SOHAM (Engine &amp; Data)      │   KOHLI (Frontend &amp; UI)      │
   ├──────────────────────────────┼──────────────────────────────┼──────────────────────────────┤
-  │ • Razorpay Test-Mode Client  │ • SQLite DB &amp; Seed Generator │ • React + TypeScript UI      │
-  │ • Governed Payment API       │ • Inventory &amp; Finance Agents │ • Onboarding Form Component  │
+  │ • Payment Gateway Client API │ • SQLite DB &amp; Seed Generator │ • React + TypeScript UI      │
+  │ • FastAPI `/action/confirm`  │ • Inventory &amp; Finance Agents │ • Onboarding Form Component  │
   │ • Failure Handler Fallback   │ • Arbitration Engine (MCDM)  │ • Priority Action Cards Feed │
   │ • SHA-256 Audit Log Engine   │ • LangGraph State Machine    │ • Governed Checkout Modal    │
-  │ • Hackathon Submission Brief │ • Synthetic Conflict Scenario│ • Failure Simulation Switch  │
+  │ • Presentation &amp; Slide Deck  │ • Synthetic Conflict Scenario│ • Failure Simulation Switch  │
   └──────────────────────────────┴──────────────────────────────┴──────────────────────────────┘</code></pre>
-<h3>Detailed Deliverable Responsibilities</h3>
-<h4>1. AryanT (Focus: Governed Agentic Commerce & Backend Integration)</h4>
-<ul><li><strong>Role & Scope</strong>: Owns the payment execution, audit logging, and Hackathon alignment.</li><li><strong>Concrete Modules</strong>:</li></ul>
-<p>  - <code>src/payment/razorpay_client.py</code>: Integrates Razorpay test-mode API (<code>rzp_test_...</code>) to generate orders with embedded AI explanation notes.</p>
-<p>  - <code>src/core/audit.py</code>: Implements SHA-256 hash-chain logging (<code>decision_log</code>).</p>
-<p>  - <code>src/api/main.py</code>: Writes FastAPI <code>/action/confirm</code> endpoint connecting approval UI to Razorpay and audit logging.</p>
-<p>  - <strong>Graceful Failure Case</strong>: Implements try/except fallback that logs <code>"HELD_IN_AUDIT_STATE"</code> if payment API fails.</p>
-<ul><li><strong>Hackathon Alignment</strong>: Ensures the Razorpay test integration directly fulfills the Hackathon's "explainable, bounded, gated, audited, failure-handled" mandate.</li></ul>
+<h3>Member-by-Member Technical Deliverables for Review 2</h3>
+<h4>1. AryanT (Focus: Governed B2B Action Settlement, Audit Engine & API Integration)</h4>
+<ul><li><strong>Files Owned</strong>: <code>src/payment/gateway_client.py</code>, <code>src/core/audit.py</code>, <code>src/api/main.py</code> (<code>/action/confirm</code>).</li><li><strong>Review 2 Deliverables</strong>:</li></ul>
+<p>  - <strong>Payment Settlement Integration</strong>: Connects FastAPI <code>/action/confirm</code> to test-mode payment API to generate B2B orders with embedded AI explanation notes.</p>
+<p>  - <strong>SHA-256 Audit Engine</strong>: Implements cryptographic hash-chaining in <code>audit.py</code> to record every decision and transaction hash in SQLite <code>decision_log</code>.</p>
+<p>  - <strong>API Fallback Handler</strong>: Implements exception handling that catches payment API failures, sets decision state to <code>"HELD_IN_AUDIT_STATE"</code>, and returns a graceful failure payload.</p>
+<p>  - <strong>Presentation Lead</strong>: Leads the 2nd Review presentation slide deck explaining the problem statement, literature gaps, and architecture.</p>
 <h4>2. Soham (Focus: Data Foundation, Domain Agents & Arbitration Engine)</h4>
-<ul><li><strong>Role & Scope</strong>: Owns the backend data engine, domain agents, and mathematical conflict arbitration.</li><li><strong>Concrete Modules</strong>:</li></ul>
-<p>  - <code>src/core/database.py</code>: SQLAlchemy schemas for <code>business_profile</code>, <code>operational_data</code>, <code>decision_log</code>.</p>
-<p>  - <code>src/seed_data.py</code>: Seeds synthetic store data generating a realistic conflict scenario (₹40k cash, ₹25k restock needed, ₹15k tax due).</p>
-<p>  - <code>src/agents/inventory_agent.py</code> & <code>finance_agent.py</code>: Domain agents with read-only SQL tool calls.</p>
-<p>  - <code>src/core/arbitration.py</code>: Pure Python implementation of <code>conflict_check()</code>, <code>priority_rank()</code> (MCDM formula), and <code>decision_router()</code> (capping restock at ₹20k).</p>
-<p>  - <code>src/api/main.py</code>: FastAPI <code>/onboard</code> and <code>/agent-query</code> endpoints.</p>
-<h4>3. Kohli (Focus: React Frontend, Action Cards & Interactive Demo)</h4>
-<ul><li><strong>Role & Scope</strong>: Owns the user interface, action card rendering, and live presentation controls.</li><li><strong>Concrete Modules</strong>:</li></ul>
-<p>  - <code>frontend/src/components/OnboardingForm.tsx</code>: Form for business category, revenue band, and cash reserve input.</p>
-<p>  - <code>frontend/src/components/ActionCardFeed.tsx</code>: Action card feed displaying top prioritized decisions with "Why?" evidence accordions and agent stances.</p>
-<p>  - <code>frontend/src/components/GovernedPaymentModal.tsx</code>: Modal appearing on <code>[Approve & Execute]</code> click showing capped amount (₹20k), AI reasoning trace, and Razorpay test checkout button.</p>
-<p>  - <strong>Failure Switch</strong>: Includes a toggle button on the UI (<code>[Simulate Payment API Failure]</code>) to demonstrate graceful error handling to faculty and judges.</p>
+<ul><li><strong>Files Owned</strong>: <code>src/core/database.py</code>, <code>src/seed_data.py</code>, <code>src/agents/inventory_agent.py</code>, <code>src/agents/finance_agent.py</code>, <code>src/core/arbitration.py</code>.</li><li><strong>Review 2 Deliverables</strong>:</li></ul>
+<p>  - <strong>Database & Synthetic Data</strong>: Writes SQLite schemas for <code>business_profile</code>, <code>operational_data</code>, <code>decision_log</code> and seeds 30 days of sales/stock ledgers in <code>seed_data.py</code>.</p>
+<p>  - <strong>Domain Agents</strong>: Builds Inventory Agent and Finance Agent using read-only SQL tool queries.</p>
+<p>  - <strong>Arbitration Engine</strong>: Implements pure Python <code>conflict_check()</code>, <code>priority_rank()</code> (MCDM formula), and <code>decision_router()</code> (capping restock at ₹20k under ₹40k cash constraint).</p>
+<p>  - <strong>FastAPI Endpoints</strong>: Writes <code>/onboard</code> and <code>/agent-query</code> routes.</p>
+<h4>3. Kohli (Focus: React Frontend, Priority Action Cards & Panel Demo Controls)</h4>
+<ul><li><strong>Files Owned</strong>: <code>frontend/src/components/*</code> (React + TypeScript).</li><li><strong>Review 2 Deliverables</strong>:</li></ul>
+<p>  - <strong>Onboarding Form UI</strong>: React form for capturing business profile parameters (revenue band, minimum cash reserve).</p>
+<p>  - <strong>Priority Action Cards Feed</strong>: Renders Top 3 prioritized decisions with "Why?" evidence accordions, score breakdowns, and agent stance badges.</p>
+<p>  - <strong>Governed Checkout Modal</strong>: Modal appearing on <code>[Approve & Execute]</code> click showing capped amount (₹20,000), AI reasoning trace, and checkout button.</p>
+<p>  - <strong>Failure Simulation Switch</strong>: UI toggle button (<code>[Simulate API Gateway Failure]</code>) allowing the team to demonstrate graceful failure handling live to the panel.</p>
 <hr>
-<h3>6. Overall Long-Term Master Project Roadmap</h3>
-<p>Beyond tomorrow's MVP demonstration, the complete 12-week capstone roadmap is structured as follows:</p>
-<pre><code>WEEKS 1–2: Foundation &amp; Data Layer (Completed in MVP)
+<h2>6. Overall 12-Week Master Roadmap</h2>
+<pre><code>WEEKS 1–2: Foundation &amp; Data Layer (Completed in Review 2 MVP)
 ├── SQLite Schema &amp; SQLAlchemy models
-├── Synthetic MSME data generator
+├── Synthetic MSME data generator (seeded with 30 days of sales/stock ledgers)
 └── Onboarding API &amp; Business Profile Context
 
-WEEKS 3–4: Core Agent &amp; Arbitration Engine (Completed in MVP)
+WEEKS 3–4: Core Agent &amp; Arbitration Engine (Completed in Review 2 MVP)
 ├── Inventory, Finance, &amp; Operations agents with read-only SQL tool grounding
 ├── Deterministic Python Arbitration Engine (conflict_check, priority_rank MCDM, decision_router)
-└── Action Card Feed UI + SHA-256 Audit Log
+└── Action Card Feed UI + SHA-256 Cryptographic Audit Log
 
 WEEKS 5–7: Extended Domain Intelligence (Phase 2)
 ├── Market Intelligence Agent (Competitor pricing &amp; trend velocity tools)
 ├── Procurement Intelligence Agent (Supplier lead-time volatility &amp; volume discount tools)
 └── Expanded 5-agent LangGraph fan-out / fan-in state machine
 
-WEEKS 8–9: Governed Agentic Commerce &amp; Multi-Channel (Phase 3)
-├── Full Razorpay B2B Payouts &amp; Supplier Settlement Integration
+WEEKS 8–9: Governed B2B Commerce &amp; Multi-Channel (Phase 3)
+├── Full B2B Payouts &amp; Supplier Automated Settlement Integration
 ├── Unstructured Input Integration (Customer WhatsApp agent in Hindi/English)
 └── Advanced Decision Workspace UI with historical trend analytics
 

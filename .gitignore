@@ -180,3 +180,5 @@ models/*
 *.pkl
 *.db
 *.sqlite
+*.pdf
+*.zip

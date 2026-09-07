@@ -1,35 +1,40 @@
 """
-FastAPI REST Application for Governed Agentic Commerce.
-Exposes endpoints for B2B payment settlement, cryptographic audit verification, and batch data ingestion.
+FastAPI REST Application for Governed B2B Action Execution.
+Exposes endpoints for B2B payment confirmation, cryptographic audit verification, and batch data ingestion.
 """
 
+import json
+import logging
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
-from src.payment.gateway_client import B2BPaymentGatewayClient, PaymentGatewayError
-from src.core.audit import append_entry, verify_chain, get_all_entries, DEFAULT_DB_PATH
-from src.ingestion.digitalizer import SMEDigitalizerEngine
+from src.payment.gateway_client import create_order, GatewayError, B2BPaymentGatewayClient
+from src.core.database import (
+    init_db,
+    log_decision,
+    get_decision_log,
+    update_action_status,
+    get_all_decision_logs,
+    DEFAULT_DB_PATH
+)
+from src.core.audit import stamp_decision, verify_chain, compute_hash
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Governed Agentic Commerce API",
-    description="Backend API for B2B action settlement, cryptographic audit logging, and SME data ingestion.",
-    version="1.0.0"
+    title="Governed Agentic Commerce Platform API",
+    description="Backend API for B2B action settlement, cryptographic SHA-256 audit logging, and SME data ingestion.",
+    version="2.0.0"
 )
 
-# Initialize Payment Gateway Client & Ingestion Engine
-payment_client = B2BPaymentGatewayClient(test_mode=True)
-ingestion_engine = SMEDigitalizerEngine()
+# Run DB initialization on startup
+init_db()
 
 
 class ActionConfirmRequest(BaseModel):
-    decision_id: str = Field(..., description="Unique decision ID from arbitration engine")
-    amount: float = Field(..., gt=0, description="Settlement amount in INR")
-    supplier_id: str = Field(..., description="Target supplier or merchant ID")
-    ai_rationale: str = Field(..., description="Explainable AI reasoning text for order metadata")
-    currency: str = Field(default="INR", description="Currency code")
-    simulate_failure: bool = Field(default=False, description="Toggle to test API fallback handling")
-    db_path: Optional[str] = Field(default=None, description="Custom database path for audit logging")
+    decision_log_id: int = Field(..., description="ID of the decision_log record to confirm")
+    approved: bool = Field(..., description="True if merchant approved execution, False if rejected")
 
 
 class BatchIngestRequest(BaseModel):
@@ -41,95 +46,115 @@ def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "service": "Governed Agentic Commerce API",
-        "version": "1.0.0"
+        "service": "Governed Agentic Commerce Platform API",
+        "version": "2.0.0"
     }
 
 
 @app.post("/action/confirm", tags=["Settlement & Governance"])
-def confirm_action(req: ActionConfirmRequest):
+def action_confirm(payload: ActionConfirmRequest) -> Dict[str, Any]:
     """
-    Settles a governed B2B payment action.
-    - If payment succeeds: Records entry in audit log with status 'SETTLED'.
-    - If payment fails: Traps exception, records entry in audit log with status 'HELD_IN_AUDIT_STATE', and returns graceful payload.
+    Executes a governed B2B payment action for a decision.
+    Sequencing: decision fetched -> owner sign-off verified -> payment attempted -> status updated -> hash stamped.
+    Catches all exceptions gracefully to guarantee zero unhandled 500 errors.
     """
-    db_path = req.db_path or DEFAULT_DB_PATH
-
     try:
-        # 1. Attempt Payment Settlement
-        order_data = payment_client.create_order(
-            amount_in_rupees=req.amount,
-            decision_id=req.decision_id,
-            supplier_id=req.supplier_id,
-            ai_rationale=req.ai_rationale,
-            currency=req.currency,
-            simulate_failure=req.simulate_failure
-        )
+        # 1. Fetch decision row
+        decision = get_decision_log(payload.decision_log_id)
+        if decision is None:
+            raise HTTPException(status_code=404, detail=f"Decision log {payload.decision_log_id} not found")
 
-        # 2. Record Successful Settlement in SHA-256 Audit Log
-        audit_entry = append_entry(
-            decision_id=req.decision_id,
-            transaction_id=order_data["transaction_id"],
-            status="SETTLED",
-            db_path=db_path
-        )
+        # 2. Handle Owner Rejection
+        if not payload.approved:
+            update_action_status(payload.decision_log_id, "REJECTED_BY_OWNER")
+            stamp_decision(payload.decision_log_id)
+            return {
+                "status": "REJECTED_BY_OWNER",
+                "transaction_id": None,
+                "error": None,
+                "decision_log_id": payload.decision_log_id
+            }
 
-        return {
-            "status": "SETTLED",
-            "message": "Payment settled successfully with embedded AI metadata.",
-            "order": order_data,
-            "audit_entry": audit_entry
+        # 3. Approved: Extract amount and convert to paise (₹20,000 -> 2,000,000 paise)
+        try:
+            dec_obj = json.loads(decision["final_decision"])
+            amount = float(dec_obj.get("approved_amount", dec_obj.get("amount", 2000.0)))
+        except Exception:
+            amount = 2000.0
+
+        amount_paise = int(round(amount * 100))
+        rationale = decision.get("rationale", "")
+
+        # 4. Attempt Gateway Order Creation
+        try:
+            res = create_order(
+                amount_paise=amount_paise,
+                receipt=f"DEC-{payload.decision_log_id}",
+                decision_id=payload.decision_log_id,
+                rationale=rationale
+            )
+            order_status = res.get("status", "CONFIRMED")
+            tx_id = res.get("transaction_id")
+            err_msg = None
+        except GatewayError as e:
+            order_status = "HELD_IN_AUDIT_STATE"
+            tx_id = None
+            err_msg = str(e)
+        except Exception as e:
+            order_status = "HELD_IN_AUDIT_STATE"
+            tx_id = None
+            err_msg = str(e)
+
+        # 5. Update decision_log row and stamp SHA-256 hash AFTER payment outcome
+        update_action_status(payload.decision_log_id, order_status, tx_id)
+        stamp_decision(payload.decision_log_id)
+
+        # 6. Response Payload Contract
+        response_payload = {
+            "status": order_status,
+            "transaction_id": tx_id,
+            "error": err_msg,
+            "decision_log_id": payload.decision_log_id
         }
 
-    except PaymentGatewayError as pge:
-        # 3. Fallback Handler: Catch payment failure & hold decision state safely
-        audit_entry = append_entry(
-            decision_id=req.decision_id,
-            transaction_id=None,
-            status="HELD_IN_AUDIT_STATE",
-            db_path=db_path
-        )
+        if order_status == "HELD_IN_AUDIT_STATE":
+            response_payload["recovery_note"] = "Payment not confirmed. No funds were moved. Retry from the decision feed."
 
+        return response_payload
+
+    except HTTPException:
+        raise
+    except Exception as ex:
+        logger.error(f"Uncaught exception in action_confirm: {ex}")
         return {
             "status": "HELD_IN_AUDIT_STATE",
-            "reason": str(pge),
-            "decision_id": req.decision_id,
-            "message": "Payment API Gateway failure trapped. Action held in audit state for review.",
-            "audit_entry": audit_entry
+            "transaction_id": None,
+            "error": str(ex),
+            "decision_log_id": getattr(payload, "decision_log_id", 0),
+            "recovery_note": "Payment not confirmed. No funds were moved. Retry from the decision feed."
         }
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unexpected Error during settlement: {str(e)}"
-        )
 
-
-@app.post("/ingest/batch", tags=["Data Digitalization"])
-def batch_ingest_files(req: BatchIngestRequest):
-    """Ingests and normalizes a batch of SME files into SQLite dataset."""
-    result = ingestion_engine.ingest_batch_files(req.file_paths)
-    return result
-
-
-@app.get("/audit/logs", tags=["Audit Ledger"])
-def fetch_audit_logs(db_path: Optional[str] = None):
-    """Retrieves all cryptographic audit log entries."""
-    target_db = db_path or DEFAULT_DB_PATH
-    entries = get_all_entries(db_path=target_db)
+@app.get("/audit/verify", tags=["Audit & Non-Repudiation"])
+def audit_verify():
+    """
+    Verifies SHA-256 hash-chain integrity over decision_log table.
+    """
+    is_valid, broken_id = verify_chain()
     return {
-        "count": len(entries),
-        "entries": entries
+        "is_valid": is_valid,
+        "broken_id": broken_id,
+        "status": "100% VERIFIED" if is_valid else "TAMPER DETECTED"
     }
 
 
-@app.get("/audit/verify", tags=["Audit Ledger"])
-def verify_audit_chain(db_path: Optional[str] = None):
-    """Verifies the integrity of the SHA-256 hash chain."""
-    target_db = db_path or DEFAULT_DB_PATH
-    is_valid, failed_index = verify_chain(db_path=target_db)
+@app.get("/audit/logs", tags=["Audit & Non-Repudiation"])
+def audit_logs():
+    """
+    Returns all decision_log records with SHA-256 hashes.
+    """
+    logs = get_all_decision_logs()
     return {
-        "is_valid": is_valid,
-        "failed_index": failed_index,
-        "message": "Audit chain intact." if is_valid else f"Tampering detected at row index {failed_index}!"
+        "total_records": len(logs),
+        "logs": logs
     }
