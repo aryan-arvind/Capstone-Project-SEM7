@@ -1,159 +1,243 @@
-"""
-Arbitration Core Engine for Multi-Agent Decision Coordination.
-Resolves competing recommendations from independent domain agents under
-shared resource constraints (cash, time) using priority scoring & confidence gating.
-"""
-
 import uuid
-import logging
-from typing import List, Dict, Tuple
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+from src.core.arbitration import (
+    ArbitrationEngine,
+    conflict_check,
+    priority_rank,
+    decision_router,
+    HARD_CASH_THRESHOLD,
+    HARD_RESTOCK_CAP,
+)
 from src.schemas import (
     Recommendation,
     SystemState,
     ArbitrationResult,
+    ActionCard,
     ExecutionTier,
-    AgentType
+    AgentType,
 )
 
-logger = logging.getLogger(__name__)
 
-
-class ArbitrationEngine:
+def arbitrate_2agent(inventory_output: Dict[str, Any], finance_output: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Coordinates and reconciles competing recommendations under liquidity & urgency constraints.
+    Review 2 Milestone K.3 — 2-Agent Arbitrator:
+    Compares Inventory Agent demand vs Finance Agent budget and enforces the capping rule:
+      Example:
+        Inventory asks ₹50,000
+        Finance allows ₹20,000
+        Arbitrator outputs: Approved = ₹20,000
     """
+    requested_spend = float(
+        inventory_output.get("requested_amount")
+        if inventory_output.get("requested_amount") is not None
+        else inventory_output.get("total_reorder_cost", 0.0)
+    )
+    budget_ceiling = float(
+        finance_output.get("max_spend_allowed")
+        if finance_output.get("max_spend_allowed") is not None
+        else finance_output.get("free_liquid_cash", 0.0)
+    )
+    critical_list = inventory_output.get("critical_items", [])
+    if critical_list and len(critical_list) > 0:
+        fallback_sku = critical_list[0].get("sku")
+    else:
+        fallback_sku = None
 
-    def __init__(
-        self,
-        weight_urgency: float = 0.45,
-        weight_impact: float = 0.35,
-        weight_risk: float = 0.20,
-        auto_execute_risk_threshold: float = 0.30,
-        escalate_financial_ratio: float = 0.60
-    ):
-        """
-        :param weight_urgency: Weight for recommendation urgency (deadline pressure)
-        :param weight_impact: Weight for expected business ROI / penalty mitigation
-        :param weight_risk: Inverse weight for downside financial/operational risk
-        :param auto_execute_risk_threshold: Max risk score permitted for fully autonomous execution
-        :param escalate_financial_ratio: Cash utilization ratio (> this fraction of cash forces escalation)
-        """
-        self.w_urgency = weight_urgency
-        self.w_impact = weight_impact
-        self.w_risk = weight_risk
-        self.risk_threshold = auto_execute_risk_threshold
-        self.escalate_ratio = escalate_financial_ratio
+    recommended_sku = (
+        inventory_output.get("sku")
+        or inventory_output.get("recommended_sku")
+        or fallback_sku
+    )
 
-    def calculate_priority_score(self, rec: Recommendation) -> float:
-        """
-        Computes normalized priority score P in [0.0, 1.0].
-        P = (w_u * urgency) + (w_i * impact) + (w_r * (1 - risk))
-        """
-        # Inverse risk score (lower risk yields higher priority score)
-        risk_safety = max(0.0, 1.0 - rec.risk_score)
-        
-        score = (
-            (self.w_urgency * rec.urgency_score) +
-            (self.w_impact * rec.expected_roi_or_impact) +
-            (self.w_risk * risk_safety)
+    if requested_spend <= 0.0:
+        approved_spend = 0.0
+        curtailed_amount = 0.0
+        is_capped = False
+        status = "NO_ACTION"
+        decision_code = "NO_ACTION"
+        execution_tier = ExecutionTier.AUTO_EXECUTE.value
+        decision_text = "No restock spend requested; zero capital allocation required."
+        reason_text = "No inventory restock requested; stock levels are healthy."
+        card_title = "No Restock Order Required"
+        card_action = "No capital disbursement needed; stock levels are healthy"
+    elif requested_spend <= budget_ceiling:
+        approved_spend = requested_spend
+        curtailed_amount = 0.0
+        is_capped = False
+        status = "APPROVED_FULL"
+        decision_code = "APPROVE_FULL"
+        execution_tier = ExecutionTier.AUTO_EXECUTE.value if requested_spend <= 0.5 * budget_ceiling else ExecutionTier.AUTO_LOG.value
+        decision_text = f"Full restock demand of ₹{int(requested_spend):,} approved within available budget of ₹{int(budget_ceiling):,}."
+        reason_text = "Inventory request is within the available finance budget."
+        sku_label = recommended_sku or "Inventory Items"
+        card_title = f"Arbitrated Restock Order ({sku_label})"
+        card_action = f"Disburse ₹{int(approved_spend):,} towards {sku_label} purchase"
+    else:
+        # Capping rule enforced: requested spend curtailed to maximum spend allowed
+        approved_spend = budget_ceiling
+        curtailed_amount = round(requested_spend - budget_ceiling, 2)
+        is_capped = True
+        status = "CAPPED"
+        decision_code = "APPROVE_CAPPED"
+        execution_tier = ExecutionTier.ESCALATE.value
+        decision_text = (
+            f"Approved = ₹{int(approved_spend):,}. "
+            f"Inventory demand of ₹{int(requested_spend):,} was capped to the Finance budget ceiling "
+            f"of ₹{int(budget_ceiling):,} (curtailed by ₹{int(curtailed_amount):,})."
         )
-        return round(score, 4)
+        reason_text = "Inventory request exceeds available finance budget. Reorder has been capped at the permitted amount."
+        sku_label = recommended_sku or "Inventory Items"
+        card_title = f"Arbitrated Restock Order ({sku_label})"
+        card_action = f"Disburse ₹{int(approved_spend):,} towards {sku_label} purchase"
 
-    def arbitrate(
-        self,
-        recommendations: List[Recommendation],
-        state: SystemState
-    ) -> ArbitrationResult:
-        """
-        Reconciles list of agent recommendations against state.available_cash.
-        """
-        if not recommendations:
-            return ArbitrationResult(
-                arbitration_id=str(uuid.uuid4()),
-                approved_recommendations=[],
-                rejected_recommendations=[],
-                total_cash_allocated=0.0,
-                remaining_cash=state.available_cash,
-                execution_tier=ExecutionTier.AUTO_EXECUTE,
-                decision_rationale="No recommendations provided to arbitrate.",
-                priority_scores={}
-            )
+    approved_text = f"Approved = ₹{int(approved_spend):,}"
 
-        # 1. Calculate Priority Scores for each recommendation
-        scored_recs: List[Tuple[Recommendation, float]] = []
-        scores_map: Dict[str, float] = {}
+    action_card = {
+        "card_id": f"ACT-ARB-{uuid.uuid4().hex[:8].upper()}",
+        "title": card_title,
+        "recommended_action": card_action,
+        "sku": recommended_sku or "N/A",
+        "requested_amount": requested_spend,
+        "approved_amount": approved_spend,
+        "budget_ceiling": budget_ceiling,
+        "budget_limit": budget_ceiling,
+        "curtailed_amount": curtailed_amount,
+        "is_capped": is_capped,
+        "status": status,
+        "execution_tier": execution_tier,
+        "governance_rule": "Deterministic Liquidity-Gated Hard Ceiling",
+        "rationale": decision_text,
+        "currency": "INR",
+        "timestamp": datetime.now().isoformat(),
+    }
 
-        for rec in recommendations:
-            score = self.calculate_priority_score(rec)
-            scored_recs.append((rec, score))
-            scores_map[rec.recommendation_id] = score
+    # Record decision into SQLite decision_logs if database is available (Item 7)
+    _record_decision_log(
+        sku=recommended_sku,
+        requested_amount=requested_spend,
+        budget_limit=budget_ceiling,
+        approved_amount=approved_spend,
+        conflict_detected=is_capped,
+        decision=decision_code,
+        reason=reason_text,
+    )
 
-        # 2. Sort recommendations descending by priority score
-        scored_recs.sort(key=lambda x: x[1], reverse=True)
+    return {
+        "arbitrator": "two_agent_deterministic",
+        "decision": decision_code,
+        "status": status,
+        "conflict_detected": is_capped,
+        "is_capped": is_capped,
+        "requested_amount": requested_spend,
+        "requested_spend": requested_spend,
+        "budget_limit": budget_ceiling,
+        "budget_ceiling": budget_ceiling,
+        "approved_amount": approved_spend,
+        "approved_spend": approved_spend,
+        "curtailed_amount": curtailed_amount,
+        "approved_text": approved_text,
+        "decision_text": decision_text,
+        "reason": reason_text,
+        "execution_tier": execution_tier,
+        "inventory_recommendation": inventory_output,
+        "finance_recommendation": finance_output,
+        "action_card": action_card,
+        "audit_summary": (
+            f"Inventory requested ₹{int(requested_spend):,}, Finance permitted ₹{int(budget_ceiling):,}. "
+            f"Capping rule enforced: {approved_text}."
+        ),
+        "timestamp": datetime.now().isoformat(),
+    }
 
-        # 3. Greedy Knapsack allocation under cash constraint
-        approved: List[Recommendation] = []
-        rejected: List[Recommendation] = []
-        allocated_cash = 0.0
-        current_balance = state.available_cash
 
-        for rec, score in scored_recs:
-            if rec.required_cash <= current_balance:
-                approved.append(rec)
-                allocated_cash += rec.required_cash
-                current_balance -= rec.required_cash
-            else:
-                rejected.append(rec)
+def _record_decision_log(
+    sku: str,
+    requested_amount: float,
+    budget_limit: float,
+    approved_amount: float,
+    conflict_detected: bool,
+    decision: str,
+    reason: str,
+) -> None:
+    """Records arbitration decisions to decision_logs table without touching Soham's audit ledger."""
+    try:
+        import os
+        import sqlite3
+        db_candidates = [
+            os.path.join("data", "sme_digitalized_data.db"),
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "sme_digitalized_data.db")
+        ]
+        db_path = None
+        for cand in db_candidates:
+            if os.path.exists(cand):
+                db_path = cand
+                break
+        if not db_path:
+            return
 
-        # 4. Determine Confidence / Risk Execution Tier
-        execution_tier = self._determine_execution_tier(approved, state.available_cash, allocated_cash)
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS decision_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    sku TEXT,
+                    requested_amount REAL NOT NULL,
+                    budget_limit REAL NOT NULL,
+                    approved_amount REAL NOT NULL,
+                    conflict_detected INTEGER NOT NULL,
+                    decision TEXT NOT NULL,
+                    reason TEXT NOT NULL
+                );
+            """)
+            cursor.execute("""
+                INSERT INTO decision_logs 
+                (timestamp, sku, requested_amount, budget_limit, approved_amount, conflict_detected, decision, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                datetime.now().isoformat(),
+                sku,
+                requested_amount,
+                budget_limit,
+                approved_amount,
+                1 if conflict_detected else 0,
+                decision,
+                reason,
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        # Non-blocking logging: do not crash if database is temporarily busy
+        pass
 
-        # 5. Formulate Decision Rationale
-        rationale = self._build_rationale(approved, rejected, state.available_cash, allocated_cash)
 
-        return ArbitrationResult(
-            arbitration_id=str(uuid.uuid4()),
-            approved_recommendations=approved,
-            rejected_recommendations=rejected,
-            total_cash_allocated=allocated_cash,
-            remaining_cash=current_balance,
-            execution_tier=execution_tier,
-            decision_rationale=rationale,
-            priority_scores=scores_map
-        )
+class TwoAgentArbitrator:
+    """Class wrapper for 2-agent deterministic arbitration."""
 
-    def _determine_execution_tier(
-        self,
-        approved: List[Recommendation],
-        initial_cash: float,
-        allocated_cash: float
-    ) -> ExecutionTier:
-        if not approved:
-            return ExecutionTier.AUTO_EXECUTE
+    def arbitrate(self, inventory_output: Dict[str, Any], finance_output: Dict[str, Any]) -> Dict[str, Any]:
+        return arbitrate_2agent(inventory_output, finance_output)
 
-        max_risk = max(rec.risk_score for rec in approved)
-        cash_utilization = allocated_cash / initial_cash if initial_cash > 0 else 1.0
 
-        # High cash utilization or high risk recs require Owner Escalation
-        if cash_utilization > self.escalate_ratio or max_risk > 0.60:
-            return ExecutionTier.ESCALATE
-        elif max_risk > self.risk_threshold:
-            return ExecutionTier.AUTO_LOG
-        else:
-            return ExecutionTier.AUTO_EXECUTE
+two_agent_arbitrator = TwoAgentArbitrator()
 
-    def _build_rationale(
-        self,
-        approved: List[Recommendation],
-        rejected: List[Recommendation],
-        initial_cash: float,
-        allocated_cash: float
-    ) -> str:
-        summary = f"Allocated ₹{allocated_cash:,.2f} out of ₹{initial_cash:,.2f} available cash. "
-        if approved:
-            app_titles = [f"'{r.title}' (Urgency: {r.urgency_score})" for r in approved]
-            summary += f"Approved {len(approved)} action(s): {', '.join(app_titles)}. "
-        if rejected:
-            rej_titles = [f"'{r.title}' (Req: ₹{r.required_cash:,.2f})" for r in rejected]
-            summary += f"Deferred/Rejected {len(rejected)} action(s) due to liquidity bounds: {', '.join(rej_titles)}."
-        return summary
+__all__ = [
+    "ArbitrationEngine",
+    "conflict_check",
+    "priority_rank",
+    "decision_router",
+    "HARD_CASH_THRESHOLD",
+    "HARD_RESTOCK_CAP",
+    "Recommendation",
+    "SystemState",
+    "ArbitrationResult",
+    "ActionCard",
+    "ExecutionTier",
+    "AgentType",
+    "arbitrate_2agent",
+    "TwoAgentArbitrator",
+    "two_agent_arbitrator",
+]

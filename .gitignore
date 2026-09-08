@@ -168,6 +168,7 @@ cython_debug/
 # Data files
 data/*
 !data/.gitkeep
+!data/financial_sample.csv
 datasets/*
 !datasets/.gitkeep
 models/*

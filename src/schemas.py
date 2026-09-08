@@ -1,27 +1,31 @@
 """
 Data Schemas for Multi-Agent Decision Coordination System.
 Defines data structures for agent recommendations, shared system constraints,
-and arbitration execution decisions.
+arbitration execution decisions, and frontend Action Cards.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Dict, Any, List, Optional
 import time
+import json
 
 
-class ExecutionTier(Enum):
+class ExecutionTier(str, Enum):
     AUTO_EXECUTE = "AUTO_EXECUTE"      # High confidence, low risk -> Act autonomously
     AUTO_LOG = "AUTO_LOG"              # Medium-high confidence -> Act and log audit trail
     ESCALATE = "ESCALATE"              # Low confidence or high financial risk -> Ask owner
 
 
-class AgentType(Enum):
+class AgentType(str, Enum):
     FINANCE = "FINANCE"
     INVENTORY = "INVENTORY"
     CUSTOMER = "CUSTOMER"
     COMPLIANCE = "COMPLIANCE"
     GROWTH = "GROWTH"
+    OPERATIONS = "OPERATIONS"
+    MARKET = "MARKET"
+    PROCUREMENT = "PROCUREMENT"
 
 
 @dataclass
@@ -41,15 +45,74 @@ class Recommendation:
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["agent_type"] = self.agent_type.value if isinstance(self.agent_type, Enum) else str(self.agent_type)
+        return d
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Recommendation":
+        agent = data.get("agent_type", "INVENTORY")
+        if isinstance(agent, str):
+            try:
+                agent = AgentType(agent.upper())
+            except ValueError:
+                agent = AgentType.INVENTORY
+        return cls(
+            recommendation_id=str(data.get("recommendation_id", "")),
+            agent_type=agent,
+            title=str(data.get("title", "")),
+            description=str(data.get("description", "")),
+            required_cash=float(data.get("required_cash", 0.0)),
+            urgency_score=float(data.get("urgency_score", 0.0)),
+            expected_roi_or_impact=float(data.get("expected_roi_or_impact", 0.0)),
+            risk_score=float(data.get("risk_score", 0.0)),
+            deadline_days=float(data.get("deadline_days", 7.0)),
+            metadata=dict(data.get("metadata", {})),
+            timestamp=float(data.get("timestamp", time.time())),
+        )
+
 
 @dataclass
 class SystemState:
     """
     Shared resource constraints across all agents in the business context.
     """
-    available_cash: float          # Available liquid working capital (in INR)
-    time_window_days: float        # Active operational window being evaluated
+    available_cash: float                # Available liquid working capital (in INR)
+    time_window_days: float              # Active operational window being evaluated
     credit_limit_available: float = 0.0  # Emergency credit buffer if applicable
+    minimum_cash_reserve: float = 10000.0 # Solvency safety reserve floor
+
+    @property
+    def liquid_buffer(self) -> float:
+        """Usable cash after setting aside the required safety reserve."""
+        return max(0.0, self.available_cash - self.minimum_cash_reserve)
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["liquid_buffer"] = self.liquid_buffer
+        return d
+
+
+@dataclass
+class ActionCard:
+    """
+    User-facing action card displayed in the decision workspace.
+    """
+    card_id: str
+    title: str
+    agent_type: str
+    status: str                         # APPROVED, DEFERRED, HELD_IN_AUDIT
+    priority_score: float
+    cost_inr: float
+    urgency_score: float
+    execution_tier: str
+    summary_rationale: str
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    razorpay_order_payload: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
@@ -65,3 +128,177 @@ class ArbitrationResult:
     execution_tier: ExecutionTier
     decision_rationale: str
     priority_scores: Dict[str, float]
+    budget_cap_applied: float = 0.0
+    action_cards: List[ActionCard] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "arbitration_id": self.arbitration_id,
+            "approved_recommendations": [r.to_dict() for r in self.approved_recommendations],
+            "rejected_recommendations": [r.to_dict() for r in self.rejected_recommendations],
+            "total_cash_allocated": round(self.total_cash_allocated, 2),
+            "remaining_cash": round(self.remaining_cash, 2),
+            "execution_tier": self.execution_tier.value if isinstance(self.execution_tier, Enum) else str(self.execution_tier),
+            "decision_rationale": self.decision_rationale,
+            "priority_scores": self.priority_scores,
+            "budget_cap_applied": round(self.budget_cap_applied, 2),
+            "action_cards": [c.to_dict() for c in self.action_cards],
+        }
+
+
+@dataclass
+class InvoiceLineItemPayload:
+    """
+    Parsed line item and metadata fields contained in InvoiceRecord.raw_payload_json.
+    """
+    supplier_gstin: Optional[str] = None
+    customer_gstin: Optional[str] = None
+    po_number: Optional[str] = None
+    payment_terms: Optional[str] = None
+    item_name: Optional[str] = None
+    quantity: Optional[float] = None
+    unit_price: Optional[float] = None
+    tax_rate_pct: Optional[float] = None
+    document_text: Optional[str] = None
+    extra_fields: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "InvoiceLineItemPayload":
+        known_keys = {
+            "supplier_gstin", "customer_gstin", "po_number", "payment_terms",
+            "item_name", "quantity", "unit_price", "tax_rate_pct", "document_text"
+        }
+        extra = {k: v for k, v in data.items() if k not in known_keys}
+        return cls(
+            supplier_gstin=data.get("supplier_gstin"),
+            customer_gstin=data.get("customer_gstin"),
+            po_number=data.get("po_number"),
+            payment_terms=data.get("payment_terms"),
+            item_name=data.get("item_name"),
+            quantity=float(data["quantity"]) if data.get("quantity") is not None else None,
+            unit_price=float(data["unit_price"]) if data.get("unit_price") is not None else None,
+            tax_rate_pct=float(data["tax_rate_pct"]) if data.get("tax_rate_pct") is not None else None,
+            document_text=data.get("document_text"),
+            extra_fields=extra,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        res = {
+            "supplier_gstin": self.supplier_gstin,
+            "customer_gstin": self.customer_gstin,
+            "po_number": self.po_number,
+            "payment_terms": self.payment_terms,
+            "item_name": self.item_name,
+            "quantity": self.quantity,
+            "unit_price": self.unit_price,
+            "tax_rate_pct": self.tax_rate_pct,
+            "document_text": self.document_text,
+        }
+        res.update(self.extra_fields)
+        return res
+
+
+@dataclass
+class InvoiceRecord:
+    """
+    Committed invoice sourced from CSVs, digital PDFs, and photographed OCR images.
+    Matches the operational table `invoices` schema contract.
+    """
+    id: Optional[int]
+    invoice_id: str
+    supplier_name: str
+    date: str                        # ISO format 'YYYY-MM-DD'
+    subtotal: float
+    tax_amount: float
+    grand_total: float
+    verification_status: str         # 'VALIDATED' or 'WARNING'
+    raw_payload_json: str            # Serialized JSON string
+    parsed_payload: Optional[InvoiceLineItemPayload] = None
+
+    @classmethod
+    def from_db_row(cls, row: Any) -> "InvoiceRecord":
+        d = dict(row) if hasattr(row, "keys") else row
+        raw_json = d.get("raw_payload_json", "{}")
+        parsed = None
+        if raw_json:
+            try:
+                parsed_dict = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+                if isinstance(parsed_dict, dict):
+                    parsed = InvoiceLineItemPayload.from_dict(parsed_dict)
+            except Exception:
+                parsed = None
+
+        return cls(
+            id=int(d["id"]) if d.get("id") is not None else None,
+            invoice_id=str(d.get("invoice_id", "")),
+            supplier_name=str(d.get("supplier_name", "")),
+            date=str(d.get("date", "")),
+            subtotal=float(d.get("subtotal", 0.0)),
+            tax_amount=float(d.get("tax_amount", 0.0)),
+            grand_total=float(d.get("grand_total", 0.0)),
+            verification_status=str(d.get("verification_status", "VALIDATED")),
+            raw_payload_json=str(raw_json) if raw_json is not None else "{}",
+            parsed_payload=parsed,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "invoice_id": self.invoice_id,
+            "supplier_name": self.supplier_name,
+            "date": self.date,
+            "subtotal": round(self.subtotal, 2),
+            "tax_amount": round(self.tax_amount, 2),
+            "grand_total": round(self.grand_total, 2),
+            "verification_status": self.verification_status,
+            "raw_payload_json": self.raw_payload_json,
+            "parsed_payload": self.parsed_payload.to_dict() if self.parsed_payload else None,
+        }
+
+
+@dataclass
+class InventoryItemRecord:
+    """
+    Master stock catalog item matching the operational table `inventory_items` schema contract.
+    """
+    item_id: str                     # Primary Key (e.g. 'SKU-1001')
+    item_name: str
+    current_stock: float
+    min_threshold: float
+    reorder_quantity: float
+    unit_cost: float
+    category: str
+
+    @property
+    def is_low_stock(self) -> bool:
+        return self.current_stock < self.min_threshold
+
+    @property
+    def reorder_cost(self) -> float:
+        return round(self.reorder_quantity * self.unit_cost, 2)
+
+    @classmethod
+    def from_db_row(cls, row: Any) -> "InventoryItemRecord":
+        d = dict(row) if hasattr(row, "keys") else row
+        return cls(
+            item_id=str(d["item_id"]),
+            item_name=str(d["item_name"]),
+            current_stock=float(d["current_stock"]),
+            min_threshold=float(d["min_threshold"]),
+            reorder_quantity=float(d["reorder_quantity"]),
+            unit_cost=float(d["unit_cost"]),
+            category=str(d.get("category", "General")),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "item_id": self.item_id,
+            "item_name": self.item_name,
+            "current_stock": self.current_stock,
+            "min_threshold": self.min_threshold,
+            "reorder_quantity": self.reorder_quantity,
+            "unit_cost": self.unit_cost,
+            "category": self.category,
+            "is_low_stock": self.is_low_stock,
+            "reorder_cost": self.reorder_cost,
+        }

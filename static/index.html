@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Multi-Agent Business Decision & Automation System for MSMEs with Deterministic Conflict Arbitration, Human-in-the-Loop Governance, and SHA-256 Audit Trail.">
+  <meta name="theme-color" content="#070913">
+  <title>Antigravity MSME Engine | Multi-Agent Business Decision & Automation System</title>
+  
+  <!-- Design System CSS -->
+  <link rel="stylesheet" href="/static/style.css">
+  
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Chart.js for Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="navbar" id="topNavbar">
+    <div class="nav-brand">
+      <div class="brand-icon">
+        <i class="ph-bold ph-scales"></i>
+      </div>
+      <div class="brand-text">
+        <h1>Antigravity MSME Engine</h1>
+        <p>Multi-Agent Decision Intelligence & Deterministic Conflict Arbitration</p>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <!-- Active Store Selector -->
+      <div class="store-selector-box" title="Select or switch active MSME store ledger">
+        <i class="ph-bold ph-storefront" style="color: var(--primary); font-size: 1.15rem;"></i>
+        <select id="storeSelect" class="store-select" aria-label="Select MSME Store">
+          <option value="1">Demo Retail Store (Active)</option>
+        </select>
+      </div>
+
+      <!-- Quick Onboard Store Trigger -->
+      <button class="btn btn-secondary" id="openOnboardModalBtn" title="Onboard a new MSME store with customized operational constraints">
+        <i class="ph-bold ph-plus-circle"></i>
+        <span>Onboard Store</span>
+      </button>
+
+      <!-- Audio Feedback Toggle -->
+      <button class="btn btn-secondary btn-icon" id="audioToggleBtn" title="Toggle Synthesized Audio Feedback" aria-label="Toggle Audio">
+        <i class="ph-bold ph-speaker-high" id="audioIcon"></i>
+      </button>
+
+      <!-- Live Heartbeat Indicator -->
+      <div class="engine-status-pill" id="systemStatusBadge">
+        <span class="pulse-dot"></span>
+        <span>MAS Arbitration Engine Active</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Application Container -->
+  <main class="container" id="mainContainer">
+
+    <!-- Interactive Navigation Tabs -->
+    <nav class="tabs-nav" aria-label="Main Workspaces">
+      <button class="tab-btn active" data-tab="tab-overview" id="tabBtnOverview">
+        <i class="ph-bold ph-gauge"></i>
+        <span>Overview</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-profile" id="tabBtnProfile">
+        <i class="ph-bold ph-sliders"></i>
+        <span>Business Profile</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-agents" id="tabBtnAgents">
+        <i class="ph-bold ph-users-three"></i>
+        <span>Agent Workspace & NLP</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-arbitration" id="tabBtnArbitration">
+        <i class="ph-bold ph-scales"></i>
+        <span>Arbitration Engine</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-actions" id="tabBtnActions">
+        <i class="ph-bold ph-hand-pointing"></i>
+        <span>Pending Actions (HITL)</span>
+        <span class="badge badge-amber" id="pendingActionsBadge" style="margin-left: 0.4rem; padding: 0.15rem 0.45rem;">2</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-simulator" id="tabBtnSimulator">
+        <i class="ph-bold ph-flask"></i>
+        <span>What-If Simulator</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-history" id="tabBtnHistory">
+        <i class="ph-bold ph-clock-counter-clockwise"></i>
+        <span>Decision History</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-analytics" id="tabBtnAnalytics">
+        <i class="ph-bold ph-chart-line-up"></i>
+        <span>Analytics</span>
+      </button>
+    </nav>
+
+    <!-- =========================================================================
+         TAB 1: OVERVIEW / COMMAND CENTER
+         ========================================================================= -->
+    <div id="tab-overview" class="tab-content active">
+
+      <!-- Executive Solvency & Liquidity HUD -->
+      <section class="hud-grid" id="solvencyHud" aria-label="Working Capital & Solvency Indicators">
+        <!-- Card 1: Liquid Working Capital -->
+        <div class="glass-panel hud-card" id="hudCapitalCard">
+          <div class="hud-card-header">
+            <span>Liquid Working Capital</span>
+            <i class="ph-fill ph-wallet" style="color: var(--emerald);"></i>
+          </div>
+          <div class="hud-card-value mono" id="cashBalanceDisplay">₹40,000.00</div>
+          <div class="hud-card-footer">
+            <span>Constraint State:</span>
+            <div id="solvencyTierDisplay">
+              <span class="badge badge-amber"><i class="ph-fill ph-warning-circle"></i> CONSTRAINED (₹40k)</span>
+            </div>
+          </div>
+          <div class="progress-track" title="Working Capital solvency threshold track">
+            <div class="progress-bar-fill" id="solvencyProgressFill" style="width: 50%; background: var(--amber);"></div>
+          </div>
+        </div>
+
+        <!-- Card 2: 30-Day Gross Revenue -->
+        <div class="glass-panel hud-card" id="hudRevenueCard">
+          <div class="hud-card-header">
+            <span>30-Day Gross Revenue</span>
+            <i class="ph-fill ph-trend-up" style="color: var(--cyan);"></i>
+          </div>
+          <div class="hud-card-value mono" id="revenueDisplay">₹1,84,520.00</div>
+          <div class="hud-card-footer">
+            <span>Aggregated Sales Ledger</span>
+            <span class="badge badge-cyan" id="salesTxnCountBadge">30 Days</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar-fill" style="width: 82%; background: var(--cyan);"></div>
+          </div>
+        </div>
+
+        <!-- Card 3: Daily Outflow Burn -->
+        <div class="glass-panel hud-card" id="hudBurnCard">
+          <div class="hud-card-header">
+            <span>Daily Outflow Burn</span>
+            <i class="ph-fill ph-fire" style="color: var(--amber);"></i>
+          </div>
+          <div class="hud-card-value mono" id="burnRateDisplay">₹1,420.00/day</div>
+          <div class="hud-card-footer">
+            <span>Estimated Runway:</span>
+            <span class="mono" style="color: var(--amber); font-weight: 700;" id="runwayDaysDisplay">28 days</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar-fill" id="burnProgressFill" style="width: 45%; background: var(--amber);"></div>
+          </div>
+        </div>
+
+        <!-- Card 4: Discretionary Headroom -->
+        <div class="glass-panel hud-card" id="hudBufferCard">
+          <div class="hud-card-header">
+            <span>Discretionary Headroom</span>
+            <i class="ph-fill ph-shield-check" style="color: var(--primary);"></i>
+          </div>
+          <div class="hud-card-value mono" id="discretionaryDisplay">₹30,000.00</div>
+          <div class="hud-card-footer">
+            <span>Above ₹10,000 Safety Floor</span>
+            <span class="badge badge-indigo">BUFFERED</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar-fill" id="discretionaryProgressFill" style="width: 60%; background: var(--primary);"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6 KPI Counters -->
+      <section class="kpi-stats-grid">
+        <div class="kpi-card">
+          <span class="kpi-card-title">Total Recommendations</span>
+          <span class="kpi-card-value mono" id="kpiTotalRecs">3</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-card-title" style="color: var(--rose);">Conflicts Detected</span>
+          <span class="kpi-card-value mono" style="color: var(--rose);" id="kpiConflicts">1</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-card-title" style="color: var(--emerald);">Executed Actions</span>
+          <span class="kpi-card-value mono" style="color: var(--emerald);" id="kpiExecuted">2</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-card-title" style="color: var(--amber);">Delayed Actions</span>
+          <span class="kpi-card-value mono" style="color: var(--amber);" id="kpiDelayed">1</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-card-title">Escalations</span>
+          <span class="kpi-card-value mono" id="kpiEscalated">0</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-card-title" style="color: var(--cyan);">HITL Interventions</span>
+          <span class="kpi-card-value mono" style="color: var(--cyan);" id="kpiInterventions">2</span>
+        </div>
+      </section>
+
+      <!-- Active Conflict Alert Status Banner -->
+      <div id="conflictBanner" class="conflict-alert has-conflict" style="margin-bottom: 1.75rem;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <div id="conflictIconBox" style="font-size: 2rem; color: var(--rose);">
+            <i id="conflictIcon" class="ph-fill ph-warning-octagon"></i>
+          </div>
+          <div>
+            <h3 id="conflictTitle" style="font-size: 1.05rem; font-weight: 700; color: #fff;">
+              Resource Over-Allocation Conflict Detected! (Demanded: ₹55,000 vs Available: ₹40,000)
+            </h3>
+            <p id="conflictDesc" style="font-size: 0.85rem; color: var(--text-muted);">
+              Finance Agent demands ₹25,000 for GST and Inventory Agent demands ₹30,000 for Product A replenishment. Shortfall: <strong>₹15,000.00</strong>.
+            </p>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <button class="btn btn-primary" onclick="goToTab('tab-arbitration')">
+            <i class="ph-bold ph-scales"></i> Resolve in Arbitration
+          </button>
+          <div class="badge badge-amber" id="executionTierPill">CONFLICT STATE</div>
+        </div>
+      </div>
+
+      <!-- Quick 3-Agent Stances Overview Grid -->
+      <div class="agents-tri-grid">
+        <!-- Finance Agent Stance -->
+        <div class="glass-panel agent-spec-card">
+          <div>
+            <div class="agent-badge-row">
+              <div class="agent-icon-wrap" style="background: rgba(16, 185, 129, 0.15); color: var(--emerald);">
+                <i class="ph-bold ph-coins"></i>
+              </div>
+              <span class="badge badge-emerald">FINANCE AGENT</span>
+            </div>
+            <h4 style="font-size: 1.05rem; color: #fff;">Statutory Reserve Mandate</h4>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">
+              Monitors cash buffer, tax deadlines, and working capital risk.
+            </p>
+            <div class="agent-rec-box">
+              <div class="agent-rec-label">Current Recommendation</div>
+              <div class="agent-rec-text" id="overviewRecFinance">Reserve ₹25,000 for GST payment due tomorrow.</div>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem;">
+            <span>Required Cash: <strong class="mono" style="color: #fff;">₹25,000</strong></span>
+            <span>Urgency: <strong class="mono" style="color: var(--rose);">0.95 (Critical)</strong></span>
+          </div>
+        </div>
+
+        <!-- Inventory Agent Stance -->
+        <div class="glass-panel agent-spec-card">
+          <div>
+            <div class="agent-badge-row">
+              <div class="agent-icon-wrap" style="background: rgba(245, 158, 11, 0.15); color: var(--amber);">
+                <i class="ph-bold ph-package"></i>
+              </div>
+              <span class="badge badge-amber">INVENTORY AGENT</span>
+            </div>
+            <h4 style="font-size: 1.05rem; color: #fff;">Stockout Depletion Risk</h4>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">
+              Evaluates stock-on-hand velocity against reorder points.
+            </p>
+            <div class="agent-rec-box">
+              <div class="agent-rec-label">Current Recommendation</div>
+              <div class="agent-rec-text" id="overviewRecInventory">Reorder Product A for ₹30,000 (15 units on hand vs 30 target).</div>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem;">
+            <span>Required Cash: <strong class="mono" style="color: #fff;">₹30,000</strong></span>
+            <span>Urgency: <strong class="mono" style="color: var(--amber);">0.85 (High)</strong></span>
+          </div>
+        </div>
+
+        <!-- Ops / Customer Agent Stance -->
+        <div class="glass-panel agent-spec-card">
+          <div>
+            <div class="agent-badge-row">
+              <div class="agent-icon-wrap" style="background: rgba(139, 92, 246, 0.15); color: var(--secondary);">
+                <i class="ph-bold ph-chat-centered-text"></i>
+              </div>
+              <span class="badge badge-indigo">OPS / CUSTOMER AGENT</span>
+            </div>
+            <h4 style="font-size: 1.05rem; color: #fff;">VIP Demand & SLA Impact</h4>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">
+              Extracts customer message intent and priority via NLP/BERT.
+            </p>
+            <div class="agent-rec-box">
+              <div class="agent-rec-label">Current Recommendation</div>
+              <div class="agent-rec-text" id="overviewRecOps">Fulfil urgent VIP customer order for 10 units of Product A today.</div>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem;">
+            <span>Required Cash: <strong class="mono" style="color: var(--emerald);">₹0 (Shelf Stock)</strong></span>
+            <span>Urgency: <strong class="mono" style="color: var(--rose);">0.90 (VIP)</strong></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- =========================================================================
+         TAB 2: BUSINESS PROFILE & CONSTRAINTS
+         ========================================================================= -->
+    <div id="tab-profile" class="tab-content" style="display: none;">
+      
+      <!-- Conceptual Flow Banner -->
+      <div class="profile-conditioned-banner">
+        <div>
+          <h3 style="font-size: 1.15rem; color: #fff;">Profile-Conditioned Reasoning Flow</h3>
+          <p style="font-size: 0.78rem; color: var(--text-muted);">
+            The business profile and owner-defined constraints conceptually ground the reasoning parameters of all three agents.
+          </p>
+        </div>
+        <div class="profile-flow-steps">
+          <span class="flow-step-pill"><i class="ph-bold ph-storefront"></i> Business Profile</span>
+          <span class="flow-step-arrow"><i class="ph-bold ph-arrow-right"></i></span>
+          <span class="flow-step-pill"><i class="ph-bold ph-cpu"></i> Reasoning Parameters</span>
+          <span class="flow-step-arrow"><i class="ph-bold ph-arrow-right"></i></span>
+          <span class="flow-step-pill"><i class="ph-bold ph-users-three"></i> 3 Autonomous Agents</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        
+        <!-- Left: Business Profile Specifications -->
+        <div class="glass-panel" style="padding: 1.75rem;">
+          <h3 style="font-size: 1.1rem; color: #fff; margin-bottom: 1rem;">Business Profile Specifications</h3>
+          
+          <div class="constraints-grid">
+            <div class="constraint-field">
+              <label>Business Name</label>
+              <input type="text" id="profBusinessName" value="Demo Retail Store">
+            </div>
+
+            <div class="constraint-field">
+              <label>Business Type</label>
+              <select id="profBusinessType">
+                <option value="Retail" selected>Retail - General Store / Kirana</option>
+                <option value="Medical">Medical - Pharmacy</option>
+                <option value="Restaurant">Restaurant & Cafe</option>
+                <option value="Fashion">Fashion & Apparel</option>
+                <option value="Other">Other SME</option>
+              </select>
+            </div>
+
+            <div class="constraint-field">
+              <label>Business Scale</label>
+              <select id="profBusinessScale">
+                <option value="Small" selected>Small (1-5 staff, &lt; 20 SKUs)</option>
+                <option value="Growing">Growing (5-15 staff, 20-100 SKUs)</option>
+                <option value="Medium">Medium (15+ staff, 100+ SKUs)</option>
+              </select>
+            </div>
+
+            <div class="constraint-field">
+              <label>Monthly Revenue Estimate</label>
+              <input type="text" id="profRevenue" value="₹1,85,000 / month">
+            </div>
+          </div>
+
+          <h4 style="font-size: 0.95rem; color: #fff; margin: 1.5rem 0 0.85rem 0;">Operational Model</h4>
+          <div class="constraints-grid">
+            <div class="constraint-field">
+              <label>Cash Cycle</label>
+              <select id="profCashCycle">
+                <option value="Daily" selected>Daily Cash Reconciliation</option>
+                <option value="Weekly">Weekly Settlement</option>
+                <option value="Monthly">Monthly Cycle</option>
+              </select>
+            </div>
+
+            <div class="constraint-field">
+              <label>Inventory Replenishment Model</label>
+              <select id="profInventoryModel">
+                <option value="Hybrid" selected>Hybrid (Make-to-Stock + On-Demand)</option>
+                <option value="Make-to-Stock">Make-to-Stock (Batch Reorder)</option>
+                <option value="Make-to-Order">Make-to-Order (Just-in-Time)</option>
+              </select>
+            </div>
+
+            <div class="constraint-field" style="grid-column: 1/-1;">
+              <label>Customer Priority Strategy</label>
+              <select id="profCustomerStrategy">
+                <option value="VIP-focused" selected>VIP-focused (Urgent VIP orders override routine stock)</option>
+                <option value="FIFO">First-Come, First-Served (FIFO)</option>
+                <option value="SLA-based">Strict SLA-Contracted Fulfillment</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Business Constraints Configuration -->
+        <div class="glass-panel" style="padding: 1.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+              <h3 style="font-size: 1.1rem; color: #fff;">Shared Business Constraints</h3>
+              <p style="font-size: 0.75rem; color: var(--text-muted);">Enforced as deterministic guardrails inside the Arbitration Engine</p>
+            </div>
+            <span class="badge badge-emerald">ACTIVE CONSTRAINTS</span>
+          </div>
+
+          <div class="constraints-grid">
+            <div class="constraint-field">
+              <label>Minimum Cash Reserve Floor (INR)</label>
+              <input type="number" id="cfgMinCashReserve" value="10000" step="500">
+              <span style="font-size: 0.7rem; color: var(--text-dim);">Liquid buffer that must never be breached for restock.</span>
+            </div>
+
+            <div class="constraint-field">
+              <label>Maximum Single Purchase Cap (INR)</label>
+              <input type="number" id="cfgMaxPurchase" value="35000" step="1000">
+              <span style="font-size: 0.7rem; color: var(--text-dim);">Maximum single procurement without director sign-off.</span>
+            </div>
+
+            <div class="constraint-field">
+              <label>Critical Inventory Safety Threshold</label>
+              <input type="number" id="cfgCriticalInventoryThreshold" value="10" step="1">
+              <span style="font-size: 0.7rem; color: var(--text-dim);">SKU units remaining before emergency restock triggers.</span>
+            </div>
+
+            <div class="constraint-field">
+              <label>Owner Approval Threshold (INR)</label>
+              <input type="number" id="cfgApprovalThreshold" value="15000" step="1000">
+              <span style="font-size: 0.7rem; color: var(--text-dim);">Actions above this require explicit HITL owner sign-off.</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(99, 102, 241, 0.08); border-radius: var(--radius-sm); font-size: 0.78rem; color: #cbd5e1;">
+            <i class="ph-bold ph-info" style="color: var(--primary);"></i>
+            <strong>Arbitration Impact:</strong> If total requested cost pushes remaining balance below the <strong>₹10,000 Safety Floor</strong> or exceeds discretionary headroom, the Arbitration Engine will automatically delay lower-priority recommendations.
+          </div>
+
+          <button class="btn btn-primary" style="margin-top: 1.25rem; width: 100%;" id="saveConstraintsBtn">
+            <i class="ph-bold ph-floppy-disk"></i> Save & Re-Apply Constraints
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- =========================================================================
+         TAB 3: AGENT WORKSPACE & NLP VISUALIZATION
+         ========================================================================= -->
+    <div id="tab-agents" class="tab-content" style="display: none;">
+
+      <!-- Review 2 Milestone K.5: 2-Agent Engine & Deterministic Decision Cards -->
+      <div id="agentDecisionCardsContainer" style="margin-bottom: 2.25rem;"></div>
+
+      <!-- Three Active Agents Grid -->
+      <div class="agents-tri-grid">
+        
+        <!-- Agent 1: Finance Agent -->
+        <div class="glass-panel agent-spec-card">
+          <div>
+            <div class="agent-badge-row">
+              <div class="agent-icon-wrap" style="background: rgba(16, 185, 129, 0.15); color: var(--emerald);">
+                <i class="ph-bold ph-coins"></i>
+              </div>
+              <span class="badge badge-emerald">AGENT 1: FINANCE</span>
+            </div>
+            <h3 style="font-size: 1.15rem; color: #fff;">Finance Agent</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Read-Only SQL Analytics Tooling</span>
+
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 1rem 0; line-height: 1.5;" id="financeSummaryText">
+              Analyzes liquid reserves, upcoming tax liabilities, and fixed burn rate.
+            </p>
+
+            <div class="criteria-bars">
+              <div class="crit-item">
+                <span>Available Liquid Cash</span>
+                <span class="mono" style="color: #fff; font-weight: 700;">₹40,000.00</span>
+              </div>
+              <div class="crit-item">
+                <span>Mandatory Safety Reserve Floor</span>
+                <span class="mono" style="color: var(--amber); font-weight: 700;">₹10,000.00</span>
+              </div>
+              <div class="crit-item">
+                <span>Statutory GST Liability</span>
+                <span class="mono" style="color: var(--rose); font-weight: 700;">₹25,000.00 (Due Tomorrow)</span>
+              </div>
+            </div>
+
+            <div class="agent-rec-box">
+              <div class="agent-rec-label">Current Generated Recommendation</div>
+              <div class="agent-rec-text">Reserve ₹25,000.00 for GST Payment due tomorrow to prevent 18% p.a. penal interest and input tax credit freeze.</div>
+            </div>
+          </div>
+
+          <div style="font-size: 0.75rem; color: var(--text-dim); border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.75rem;">
+            Decision Factor: <strong>Statutory Deadline (Tomorrow)</strong> | Confidence: <strong>98%</strong>
+          </div>
+        </div>
+
+        <!-- Agent 2: Inventory Agent -->
+        <div class="glass-panel agent-spec-card">
+          <div>
+            <div class="agent-badge-row">
+              <div class="agent-icon-wrap" style="background: rgba(245, 158, 11, 0.15); color: var(--amber);">
+                <i class="ph-bold ph-package"></i>
+              </div>
+              <span class="badge badge-amber">AGENT 2: INVENTORY</span>
+            </div>
+            <h3 style="font-size: 1.15rem; color: #fff;">Inventory Agent</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Stock Velocity & Stockout Risk Model</span>
+
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 1rem 0; line-height: 1.5;" id="inventorySummaryText">
+              Evaluates inventory depletion rates against lead time replenishment cycles.
+            </p>
+
+            <div class="criteria-bars">
+              <div class="crit-item">
+                <span>Product A Stock on Hand</span>
+                <span class="mono" style="color: var(--amber); font-weight: 700;">15 Units (Low)</span>
+              </div>
+              <div class="crit-item">
+                <span>Reorder Point Threshold</span>
+                <span class="mono" style="color: #fff; font-weight: 700;">30 Units</span>
+              </div>
+              <div class="crit-item">
+                <span>Replenishment Batch Cost</span>
+                <span class="mono" style="color: var(--rose); font-weight: 700;">₹30,000.00</span>
+              </div>
+            </div>
+
+            <div class="agent-rec-box">
+              <div class="agent-rec-label">Current Generated Recommendation</div>
+              <div class="agent-rec-text">Reorder batch of 15 units of Product A for ₹30,000.00 to avoid complete shelf stockout.</div>
+            </div>
+          </div>
+
+          <div style="font-size: 0.75rem; color: var(--text-dim); border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.75rem;">
+            Decision Factor: <strong>Depletion Velocity (2.5 u/day)</strong> | Confidence: <strong>91%</strong>
+          </div>
+        </div>
+
+        <!-- Agent 3: Ops / Customer Agent -->
+        <div class="glass-panel agent-spec-card">
+          <div>
+            <div class="agent-badge-row">
+              <div class="agent-icon-wrap" style="background: rgba(139, 92, 246, 0.15); color: var(--secondary);">
+                <i class="ph-bold ph-chat-centered-text"></i>
+              </div>
+              <span class="badge badge-indigo">AGENT 3: OPS / CUSTOMER</span>
+            </div>
+            <h3 style="font-size: 1.15rem; color: #fff;">Ops / Customer Agent</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">NLP / BERT Demand & SLA Intent Analyzer</span>
+
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 1rem 0; line-height: 1.5;">
+              Parses customer communications, SLA urgency, and account priority tiers.
+            </p>
+
+            <div class="criteria-bars">
+              <div class="crit-item">
+                <span>Customer Account Tier</span>
+                <span class="badge badge-emerald">VIP CLIENT</span>
+              </div>
+              <div class="crit-item">
+                <span>Requested Quantity</span>
+                <span class="mono" style="color: #fff; font-weight: 700;">10 Units of Product A</span>
+              </div>
+              <div class="crit-item">
+                <span>Fulfillment Feasibility</span>
+                <span class="mono" style="color: var(--emerald); font-weight: 700;">Feasible via On-Hand Stock (15 &gt; 10)</span>
+              </div>
+            </div>
+
+            <div class="agent-rec-box">
+              <div class="agent-rec-label">Current Generated Recommendation</div>
+              <div class="agent-rec-text">Fulfil urgent VIP customer order for 10 units of Product A immediately from current shelf inventory without purchasing new stock.</div>
+            </div>
+          </div>
+
+          <div style="font-size: 0.75rem; color: var(--text-dim); border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.75rem;">
+            Decision Factor: <strong>VIP Retention & Zero Cash Outlay</strong> | Confidence: <strong>94%</strong>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Customer NLP / BERT Processing Visualization -->
+      <div class="glass-panel nlp-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h3 style="font-size: 1.15rem; color: #fff;">Customer NLP / BERT Pipeline Visualization</h3>
+            <p style="font-size: 0.78rem; color: var(--text-muted);">
+              Demonstrating natural language parsing of incoming unstructured customer messages into structured agent recommendations
+            </p>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-icon" id="nlpPreset1" title="Load VIP Urgent Order Message">
+              <i class="ph-bold ph-star"></i>
+            </button>
+            <button class="btn btn-secondary btn-icon" id="nlpPreset2" title="Load Bulk Standard Order Message">
+              <i class="ph-bold ph-truck"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="nlp-pipeline-row">
+          <!-- Step A: Incoming Customer Message -->
+          <div>
+            <div class="nlp-msg-bubble">
+              <p style="font-size: 0.95rem; color: #fff; font-weight: 600;" id="nlpInputMsg">
+                "I need 10 units of Product A today. It's urgent."
+              </p>
+              <div style="margin-top: 0.75rem; font-size: 0.72rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+                <span>Sender: <strong>Shree Textiles (VIP Account #V402)</strong></span>
+                <span>Channel: <strong>WhatsApp Business</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step B: BERT / NLP Transformer Bridge -->
+          <div class="nlp-mid-connector">
+            <span class="nlp-token-badge">BERT TOKENIZER</span>
+            <i class="ph-bold ph-arrow-right" style="font-size: 1.5rem;"></i>
+            <span class="nlp-token-badge">NER CLASSIFIER</span>
+          </div>
+
+          <!-- Step C: Structured Extracted Information -->
+          <div class="nlp-extracted-grid">
+            <div class="nlp-extract-item">
+              <label>Intent Detected</label>
+              <span style="color: var(--cyan);" id="nlpIntent">Urgent Order</span>
+            </div>
+            <div class="nlp-extract-item">
+              <label>Product Identified</label>
+              <span id="nlpProduct">Product A (SKU-A42)</span>
+            </div>
+            <div class="nlp-extract-item">
+              <label>Quantity</label>
+              <span class="mono" id="nlpQuantity">10 Units</span>
+            </div>
+            <div class="nlp-extract-item">
+              <label>Urgency Level</label>
+              <span style="color: var(--rose);" id="nlpUrgency">High (Today)</span>
+            </div>
+            <div class="nlp-extract-item">
+              <label>Customer Tier</label>
+              <span style="color: var(--emerald);" id="nlpCustomer">VIP Account</span>
+            </div>
+            <div class="nlp-extract-item">
+              <label>Model Confidence</label>
+              <span class="mono" style="color: var(--primary);" id="nlpConfidence">94%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8-SKU Kirana Catalog Inventory Table -->
+      <div class="glass-panel" style="padding: 1.75rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <h3 style="font-size: 1.1rem; color: #fff;">Store Catalog Health & Reorder Status</h3>
+            <p style="font-size: 0.75rem; color: var(--text-muted);">Real-time stock on hand, reorder thresholds, and depletion velocity</p>
+          </div>
+          <button class="btn btn-secondary btn-icon" id="refreshCatalogBtn" title="Refresh Catalog">
+            <i class="ph-bold ph-arrows-clockwise"></i>
+          </button>
+        </div>
+
+        <div class="catalog-table-wrap">
+          <table class="catalog-table" id="catalogTable">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Product Name</th>
+                <th>Stock On Hand</th>
+                <th>Reorder Level</th>
+                <th>Avg Sales/Day</th>
+                <th>Runway</th>
+                <th>Unit Cost</th>
+                <th>Unit Price</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="catalogTableBody">
+              <!-- Dynamically Populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- =========================================================================
+         TAB 4: ARBITRATION ENGINE
+         ========================================================================= -->
+    <div id="tab-arbitration" class="tab-content" style="display: none;">
+      
+      <div class="glass-panel arbitration-stepper-panel">
+        <div class="stepper-header-row">
+          <div>
+            <h2 style="font-size: 1.3rem; color: #fff;">Central Conflict Arbitration Engine</h2>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">
+              Deterministic multi-criteria decision making (MCDM) &amp; solvency cap arbitration across the 3 competing agents
+            </p>
+          </div>
+          <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <button class="btn btn-primary" id="runArbitrationBtn" style="padding: 0.75rem 1.5rem;">
+              <i class="ph-bold ph-play-circle" style="font-size: 1.2rem;"></i>
+              <span>Run Arbitration Cycle</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 5-Step Stepper Navigation -->
+        <div class="stepper-nav">
+          <button class="stepper-node active" data-step="1" id="stepNode1">
+            <div class="stepper-circle">1</div>
+            <span class="stepper-node-title">1. Collect Recs</span>
+          </button>
+
+          <button class="stepper-node" data-step="2" id="stepNode2">
+            <div class="stepper-circle">2</div>
+            <span class="stepper-node-title">2. Conflict Detection</span>
+          </button>
+
+          <button class="stepper-node" data-step="3" id="stepNode3">
+            <div class="stepper-circle">3</div>
+            <span class="stepper-node-title">3. Constraint Analysis</span>
+          </button>
+
+          <button class="stepper-node" data-step="4" id="stepNode4">
+            <div class="stepper-circle">4</div>
+            <span class="stepper-node-title">4. Priority Ranking</span>
+          </button>
+
+          <button class="stepper-node" data-step="5" id="stepNode5">
+            <div class="stepper-circle">5</div>
+            <span class="stepper-node-title">5. Decision Routing</span>
+          </button>
+        </div>
+
+        <!-- Stepper Dynamic Stage Body -->
+        <div id="stepperStageContent">
+          <!-- Dynamically populated per active step -->
+        </div>
+
+        <!-- Action Buttons after Arbitration -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--border-subtle);">
+          <button class="btn btn-secondary" id="openDecisionTraceBtn">
+            <i class="ph-bold ph-info"></i> Why this decision? (Structured Trace)
+          </button>
+
+          <button class="btn btn-success" onclick="goToTab('tab-actions')">
+            <span>Proceed to Human-in-the-Loop Review</span>
+            <i class="ph-bold ph-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- =========================================================================
+         TAB 5: PENDING ACTIONS (HUMAN-IN-THE-LOOP LAYER)
+         ========================================================================= -->
+    <div id="tab-actions" class="tab-content" style="display: none;">
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <div>
+          <h3 style="font-size: 1.2rem; color: #fff;">Human-in-the-Loop Governance</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">
+            The Arbitration Engine determines the algorithmic recommendation; the business owner has final authority to <strong>Approve</strong>, <strong>Reject</strong>, or <strong>Modify</strong>.
+          </p>
+        </div>
+        <span class="badge badge-indigo">AWAITING OWNER SIGN-OFF</span>
+      </div>
+
+      <!-- HITL Action Cards Feed -->
+      <div class="cards-grid" id="actionCardsGrid">
+        <!-- Dynamically Populated with Approve / Reject / Modify Cards -->
+      </div>
+
+    </div>
+
+    <!-- =========================================================================
+         TAB 6: WHAT-IF SIMULATOR
+         ========================================================================= -->
+    <div id="tab-simulator" class="tab-content" style="display: none;">
+      
+      <div class="glass-panel" style="padding: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <h3 style="font-size: 1.2rem; color: #fff;">What-If Scenario Simulator</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">
+              Adjust business variables in real-time to observe how the Arbitration Engine deterministically adapts conflict detection, priorities, and routing.
+            </p>
+          </div>
+          <button class="btn btn-secondary" id="resetSimScenarioBtn">
+            <i class="ph-bold ph-arrows-counter-clockwise"></i> Reset to Baseline Scenario
+          </button>
+        </div>
+
+        <!-- Real-Time Simulator Controls Grid -->
+        <div class="sim-controls-grid">
+          
+          <div class="sim-input-box">
+            <div class="sim-input-header">
+              <label>Available Liquid Cash</label>
+              <span class="sim-val" id="simValCash">₹40,000</span>
+            </div>
+            <input type="range" id="simSliderCash" min="10000" max="100000" step="2500" value="40000">
+          </div>
+
+          <div class="sim-input-box">
+            <div class="sim-input-header">
+              <label>GST Tax Obligation</label>
+              <span class="sim-val" id="simValGst">₹25,000</span>
+            </div>
+            <input type="range" id="simSliderGst" min="5000" max="50000" step="2500" value="25000">
+          </div>
+
+          <div class="sim-input-box">
+            <div class="sim-input-header">
+              <label>Inventory Reorder Cost</label>
+              <span class="sim-val" id="simValInvCost">₹30,000</span>
+            </div>
+            <input type="range" id="simSliderInvCost" min="10000" max="60000" step="2500" value="30000">
+          </div>
+
+          <div class="sim-input-box">
+            <div class="sim-input-header">
+              <label>Product A Current Stock</label>
+              <span class="sim-val" id="simValStock">15 Units</span>
+            </div>
+            <input type="range" id="simSliderStock" min="0" max="50" step="1" value="15">
+          </div>
+
+          <div class="sim-input-box">
+            <div class="sim-input-header">
+              <label>Customer Order Urgency</label>
+              <span class="sim-val" id="simValUrgency">High (Today)</span>
+            </div>
+            <select id="simSelectUrgency" class="constraint-field" style="width: 100%; margin-top: 0.25rem;">
+              <option value="high" selected>High (Today)</option>
+              <option value="medium">Medium (2-3 Days)</option>
+              <option value="low">Low (Flexible)</option>
+            </select>
+          </div>
+
+          <div class="sim-input-box">
+            <div class="sim-input-header">
+              <label>Customer Account Priority</label>
+              <span class="sim-val" id="simValPriority">VIP Client</span>
+            </div>
+            <select id="simSelectPriority" class="constraint-field" style="width: 100%; margin-top: 0.25rem;">
+              <option value="vip" selected>VIP Client</option>
+              <option value="repeat">Repeat Customer</option>
+              <option value="standard">Standard Customer</option>
+            </select>
+          </div>
+
+        </div>
+
+        <!-- Live Reactive Simulation Result Banner -->
+        <div id="simLiveResultBox" style="margin-top: 1.75rem; padding: 1.25rem; border-radius: var(--radius-md); background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);">
+          <!-- Dynamically Updated on Input -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- =========================================================================
+         TAB 7: DECISION HISTORY & SHA-256 AUDIT TRAIL
+         ========================================================================= -->
+    <div id="tab-history" class="tab-content" style="display: none;">
+      
+      <div class="glass-panel chain-explorer-header" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <div style="width: 48px; height: 48px; border-radius: var(--radius-md); background: rgba(16, 185, 129, 0.15); color: var(--emerald); display: flex; align-items: center; justify-content: center; font-size: 1.75rem;">
+            <i class="ph-fill ph-shield-check"></i>
+          </div>
+          <div>
+            <h3 style="font-size: 1.15rem; color: #fff;">Cryptographic SHA-256 Decision Audit Trail</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted);" id="chainStatusText">
+              Verifying cryptographic hash chain across historical decisions...
+            </p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+          <button class="btn btn-secondary" id="tamperTestBtn" title="Demonstrate cryptographic tamper detection">
+            <i class="ph-bold ph-bug"></i> Simulate Tamper Attack
+          </button>
+          <button class="btn btn-primary" id="refreshAuditBtn">
+            <i class="ph-bold ph-arrows-clockwise"></i> Re-Verify Chain
+          </button>
+        </div>
+      </div>
+
+      <!-- Visual Chained Blocks -->
+      <div class="glass-panel chain-visualizer-wrap" style="margin-bottom: 1.5rem;">
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; margin-bottom: 0.75rem;">
+          <i class="ph-bold ph-link-simple"></i> Live Visual Hash Chain:
+        </div>
+        <div class="chain-blocks-row" id="chainBlocksRow">
+          <!-- Dynamically populated chained blocks -->
+        </div>
+      </div>
+
+      <!-- Decision History Table -->
+      <div class="glass-panel" style="padding: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h4 style="color: #fff; font-size: 1rem;">Completed Decision Log</h4>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">Click any row to inspect its structured Decision Trace</span>
+        </div>
+
+        <div class="audit-table-wrap">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th>Block #</th>
+                <th>Timestamp</th>
+                <th>Query / Event</th>
+                <th>Arbitration Routing</th>
+                <th>Allocated (INR)</th>
+                <th>Owner Action</th>
+                <th>SHA-256 Hash</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- =========================================================================
+         TAB 8: ANALYTICS & RUNWAYS
+         ========================================================================= -->
+    <div id="tab-analytics" class="tab-content" style="display: none;">
+      <div class="analytics-grid">
+        
+        <!-- Chart 1: 30-Day Cash Flow -->
+        <div class="glass-panel chart-card">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="font-size: 1.1rem; color: #fff;">30-Day Cash Position &amp; Solvency Bounds</h3>
+              <span class="badge badge-emerald">₹40,000 Active Capital</span>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted);">Visualizing daily revenues, restock outflows, and emergency floor</p>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="cashFlowChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: SKU Stockout Risk Radar -->
+        <div class="glass-panel chart-card">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="font-size: 1.1rem; color: #fff;">Kirana SKU Stockout Risk Radar</h3>
+              <span class="badge badge-amber">Stock vs Reorder Threshold</span>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted);">Stock-on-hand vs reorder point across essential items</p>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="stockRadarChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- =========================================================================
+       MODALS
+       ========================================================================= -->
+
+  <!-- 1. Decision Trace Modal ("Why this decision?") -->
+  <div class="modal-overlay" id="decisionTraceModal" role="dialog" aria-modal="true">
+    <div class="glass-panel modal-content" style="max-width: 720px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: rgba(99, 102, 241, 0.15); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+            <i class="ph-bold ph-tree-structure"></i>
+          </div>
+          <div>
+            <h3 style="font-size: 1.2rem; color: #fff;">Structured Decision Trace</h3>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Deterministic Multi-Factor Explainability (No LLM Hallucinations)</span>
+          </div>
+        </div>
+        <button class="close-btn" id="closeDecisionTraceModal">&times;</button>
+      </div>
+
+      <div id="decisionTraceBody">
+        <!-- Dynamically rendered structured decision factors -->
+      </div>
+
+      <div style="margin-top: 1.5rem; text-align: right;">
+        <button class="btn btn-secondary" id="closeDecisionTraceBtn">Close Trace</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Modify Action Modal (Human-in-the-Loop) -->
+  <div class="modal-overlay" id="modifyActionModal" role="dialog" aria-modal="true">
+    <div class="glass-panel modal-content" style="max-width: 580px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: rgba(245, 158, 11, 0.15); color: var(--amber); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+            <i class="ph-bold ph-pencil-simple"></i>
+          </div>
+          <div>
+            <h3 style="font-size: 1.2rem; color: #fff;">Modify Action Proposal</h3>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Adjust parameters before committing to execution</span>
+          </div>
+        </div>
+        <button class="close-btn" id="closeModifyModal">&times;</button>
+      </div>
+
+      <form id="modifyActionForm" style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
+        <input type="hidden" id="modCardId">
+
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Action Name</label>
+          <input type="text" id="modActionTitle" class="constraint-field" style="width: 100%;" readonly>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div>
+            <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Revised Quantity (Units)</label>
+            <input type="number" id="modQuantity" class="constraint-field" style="width: 100%;" min="1" value="5">
+          </div>
+
+          <div>
+            <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Revised Cash Outlay (INR)</label>
+            <input type="number" id="modAmount" class="constraint-field" style="width: 100%;" min="0" step="500" value="10000">
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Execution Schedule</label>
+          <select id="modSchedule" class="constraint-field" style="width: 100%;">
+            <option value="immediate">Execute Immediately</option>
+            <option value="defer_3d" selected>Defer by 3 Days (Post-GST Window)</option>
+            <option value="defer_7d">Defer by 7 Days (Next Settlement)</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Owner Modification Note</label>
+          <input type="text" id="modNote" class="constraint-field" style="width: 100%;" value="Reduced reorder to 5 units (₹10,000) to respect GST tax buffer.">
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+          <button type="button" class="btn btn-secondary" style="flex: 1;" id="cancelModifyBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" style="flex: 2;">
+            <i class="ph-bold ph-check"></i> Apply Modification &amp; Log
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. Governed Razorpay Checkout Modal -->
+  <div class="modal-overlay" id="checkoutModal" role="dialog" aria-modal="true">
+    <div class="glass-panel modal-content">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: rgba(99, 102, 241, 0.15); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+            <i class="ph-bold ph-shield-check"></i>
+          </div>
+          <div>
+            <h3 style="font-size: 1.15rem; color: #fff;">Governed Commerce Checkout</h3>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Autonomous Execution Sign-Off</span>
+          </div>
+        </div>
+        <button class="close-btn" id="closeCheckoutModal">&times;</button>
+      </div>
+
+      <div class="razorpay-branding">
+        <i class="ph-bold ph-lock" style="color: #3b82f6;"></i>
+        <span class="razorpay-logo">Razorpay</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: auto;">256-Bit SSL Encrypted</span>
+      </div>
+
+      <div style="background: rgba(0,0,0,0.35); padding: 1.25rem; border-radius: var(--radius-md); margin-bottom: 1rem; border: 1px solid rgba(255,255,255,0.05);">
+        <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Approved Action Item</div>
+        <div style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-top: 0.35rem;" id="modalItemTitle">--</div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06);">
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Bounded Disbursement:</span>
+          <span class="mono" style="font-size: 1.6rem; font-weight: 800; color: var(--emerald);" id="modalItemAmount">₹--</span>
+        </div>
+      </div>
+
+      <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); padding: 0.85rem; border-radius: var(--radius-sm); font-size: 0.78rem; color: #cbd5e1; margin-bottom: 1rem;">
+        <i class="ph-bold ph-info" style="color: var(--primary);"></i>
+        <strong>Explainable Policy Note:</strong>
+        <span id="modalExplainNote">Validated by Deterministic Arbitration Engine</span>
+      </div>
+
+      <div class="payment-method-tabs">
+        <div class="pm-tab active" data-method="upi">
+          <i class="ph-bold ph-qr-code"></i>
+          <span>UPI / QR</span>
+        </div>
+        <div class="pm-tab" data-method="card">
+          <i class="ph-bold ph-credit-card"></i>
+          <span>Card</span>
+        </div>
+        <div class="pm-tab" data-method="netbanking">
+          <i class="ph-bold ph-bank"></i>
+          <span>NetBanking</span>
+        </div>
+      </div>
+
+      <div class="toggle-wrapper">
+        <div>
+          <div style="font-weight: 700; font-size: 0.825rem; color: #f87171;">Simulate Gateway Timeout / Network Failure</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted);">Holds action in audit state without fund deduction.</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="simulateFailureToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+        <button class="btn btn-secondary" style="flex: 1;" id="cancelCheckoutBtn">Cancel</button>
+        <button class="btn btn-success" style="flex: 2;" id="confirmPaymentBtn">
+          <i class="ph-bold ph-shield-check"></i> Sign-Off &amp; Execute via Razorpay
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Store Onboarding Modal -->
+  <div class="modal-overlay" id="onboardModal" role="dialog" aria-modal="true">
+    <div class="glass-panel modal-content">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <i class="ph-bold ph-storefront" style="color: var(--primary); font-size: 1.25rem;"></i>
+          <h3 style="font-size: 1.2rem; color: #fff;">Onboard New MSME Store</h3>
+        </div>
+        <button class="close-btn" id="closeOnboardModal">&times;</button>
+      </div>
+
+      <form id="onboardForm" style="display: flex; flex-direction: column; gap: 1rem;">
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Business Name</label>
+          <input type="text" id="obBusinessName" class="constraint-field" style="width: 100%;" required placeholder="e.g. Verma General Store">
+        </div>
+
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Store Category</label>
+          <select id="obBusinessType" class="constraint-field" style="width: 100%;">
+            <option value="Retail - General Store">Retail - General Store / Kirana</option>
+            <option value="Medical - Pharmacy">Medical - Pharmacy</option>
+            <option value="Restaurant - Food &amp; Beverage">Restaurant - Food &amp; Beverage</option>
+            <option value="Fashion - Apparel">Fashion - Apparel</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Owner Name</label>
+          <input type="text" id="obOwnerName" class="constraint-field" style="width: 100%;" required placeholder="e.g. Amit Verma">
+        </div>
+
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Starting Working Capital (INR)</label>
+          <input type="number" id="obStartingCash" class="constraint-field" style="width: 100%;" value="40000" min="5000" step="500" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">
+          <i class="ph-bold ph-check"></i> Onboard Store &amp; Seed Profile
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. Block Detail / JSON Inspector Modal -->
+  <div class="modal-overlay" id="blockDetailModal" role="dialog" aria-modal="true">
+    <div class="glass-panel modal-content" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; color: #fff;" id="blockDetailTitle">Block Payload</h3>
+        <button class="close-btn" id="closeBlockDetailModal">&times;</button>
+      </div>
+      <div style="background: rgba(0,0,0,0.5); padding: 1rem; border-radius: var(--radius-sm); max-height: 400px; overflow-y: auto;">
+        <pre id="blockDetailJson" class="mono" style="font-size: 0.75rem; color: #a5b4fc; white-space: pre-wrap; word-break: break-all;"></pre>
+      </div>
+      <div style="margin-top: 1rem; text-align: right;">
+        <button class="btn btn-secondary" id="closeBlockDetailBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
+
+  <!-- Client Application Script -->
+  <script src="/static/app.js"></script>
+  <!-- Review 2 Milestone K.5: Agent Decision Cards Component -->
+  <script src="/static/js/agent_component.js"></script>
+</body>
+</html>

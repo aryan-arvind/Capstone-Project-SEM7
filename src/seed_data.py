@@ -13,21 +13,21 @@ behaviour on request.
 
 import random
 from datetime import datetime, timedelta, timezone
+from typing import Optional
+import pandas as pd
 
 from src.core import database as db
 
 SIMULATION_DAYS = 30
 
 CATALOG = [
-    # sku,     product_name,          unit_cost, unit_price, start_stock, reorder_level, avg_daily_sales
-    ("SKU001", "Rice 5kg Bag",             220.0, 260.0, 40, 15, 3.2),
-    ("SKU002", "Wheat Flour 5kg Bag",      190.0, 225.0, 35, 12, 2.6),
-    ("SKU003", "Sugar 1kg Pack",            42.0,  50.0, 60, 20, 4.5),
-    ("SKU004", "Cooking Oil 1L Bottle",    130.0, 155.0, 30, 10, 2.1),
-    ("SKU005", "Tea Powder 250g",           85.0, 105.0, 25, 10, 1.8),
-    ("SKU006", "Soap Bar",                  20.0,  28.0, 80, 25, 5.0),
-    ("SKU007", "Biscuits Pack",             18.0,  25.0, 90, 30, 6.5),
-    ("SKU008", "Detergent 1kg",             95.0, 118.0, 20,  8, 1.4),
+    # sku,     product_name,  unit_cost, unit_price, start_stock, reorder_level, avg_daily_sales
+    ("SKU001", "Carretera",        3.0,       20.0,          40,            15,            3.2),
+    ("SKU002", "Montana",          5.0,       15.0,          35,            12,            2.6),
+    ("SKU003", "Paseo",           10.0,       20.0,          60,            20,            4.5),
+    ("SKU004", "Velo",           120.0,      125.0,          30,            10,            2.1),
+    ("SKU005", "VTT",            250.0,      300.0,          25,            10,            1.8),
+    ("SKU006", "Amarilla",       260.0,      350.0,          20,             8,            1.4),
 ]
 
 RENT_AMOUNT = 9000.0
@@ -141,16 +141,84 @@ def generate_seed_data(business_id: int, starting_cash: float, seed: int = 42) -
     return round(running_cash, 2)
 
 
+def seed_from_financial_dataset(business_id: int, csv_path: Optional[str] = None, starting_cash: float = 50000.0) -> float:
+    """
+    Seeds `operational_data` for `business_id` using real transaction records
+    from the Financial Sample dataset.
+    """
+    from src.data_cleaning import load_clean_financial_sample
+    df = load_clean_financial_sample(csv_path)
+
+    sku_map = {
+        "Carretera": "SKU001",
+        "Montana": "SKU002",
+        "Paseo": "SKU003",
+        "Velo": "SKU004",
+        "VTT": "SKU005",
+        "Amarilla": "SKU006",
+    }
+
+    records = []
+    running_cash = starting_cash
+
+    # Sort chronologically and take a 30-day window or top 60 transactions
+    if "Date" in df.columns:
+        df = df.sort_values(by="Date")
+
+    sample_slice = df.tail(80)
+
+    # Track simulated stock per SKU
+    stock = {
+        "SKU001": 25,
+        "SKU002": 18,
+        "SKU003": 22,
+        "SKU004": 12,
+        "SKU005": 8,
+        "SKU006": 6,
+    }
+
+    for _, row in sample_slice.iterrows():
+        prod_name = str(row["Product"]).strip()
+        sku = sku_map.get(prod_name, "SKU001")
+        date_str = str(row["Date"]) if pd.notna(row.get("Date")) else datetime.now().strftime("%Y-%m-%d")
+        units_sold = int(max(1, round(float(row.get("Units Sold", 1.0)) / 200.0)))
+        unit_cost = float(row.get("Manufacturing Price", 10.0))
+        unit_price = float(row.get("Sale Price", 20.0))
+        amount = round(units_sold * unit_price, 2)
+        cogs = round(units_sold * unit_cost, 2)
+
+        stock[sku] = max(2, stock.get(sku, 20) - units_sold)
+        running_cash += amount
+
+        records.append({
+            "business_id": business_id,
+            "record_date": date_str,
+            "record_type": "sale",
+            "sku": sku,
+            "product_name": prod_name,
+            "quantity": units_sold,
+            "unit_cost": unit_cost,
+            "unit_price": unit_price,
+            "amount": amount,
+            "stock_on_hand": stock[sku],
+            "reorder_level": 15,
+            "category": "Enterprise",
+        })
+
+    db.insert_operational_records_bulk(records)
+    return round(running_cash, 2)
+
+
 def seed_demo_business() -> int:
     """Standalone entry point: creates a demo business and seeds its history.
     Run directly with `python -m src.seed_data`.
     """
     db.init_db()
-    starting_cash = 25000.0
+    starting_cash = 35000.0
     business_id = db.create_business(
-        business_name="Sharma General Store",
-        business_type="Retail - Kirana Store",
-        owner_name="Rajesh Sharma",
+        business_name="Global Enterprise Supplies",
+        business_type="Commercial Distribution",
+        owner_name="Financial Operations Lead",
         cash_balance=starting_cash,
     )
     final_cash = generate_seed_data(business_id, starting_cash=starting_cash)
