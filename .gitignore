@@ -182,3 +182,9 @@ models/*
 *.sqlite
 *.pdf
 *.zip
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.vite/

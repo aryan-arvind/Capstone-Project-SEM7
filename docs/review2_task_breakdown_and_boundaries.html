@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset='utf-8'>
+<style>
+    body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        line-height: 1.6;
+        color: #1e293b;
+        padding: 40px;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    h1 { color: #0284c7; border-bottom: 2px solid #0284c7; padding-bottom: 8px; font-size: 24px; }
+    h2 { color: #0f172a; margin-top: 24px; font-size: 18px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+    h3 { color: #334155; font-size: 15px; margin-top: 16px; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 13px; }
+    th, td { border: 1px solid #cbd5e1; padding: 10px 12px; text-align: left; }
+    th { background-color: #f1f5f9; color: #0f172a; font-weight: bold; }
+    tr:nth-child(even) { background-color: #f8fafc; }
+    code { background-color: #f1f5f9; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+    pre { background-color: #0f172a; color: #f8fafc; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 12px; }
+    pre code { background-color: transparent; color: inherit; padding: 0; }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 6px; }
+    blockquote { border-left: 4px solid #0284c7; background: #f0f9ff; margin: 16px 0; padding: 12px 16px; color: #0369a1; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>🎯 Capstone Review 2: Actionable Task Breakdown &amp; Module Boundary Specification</h1>
+<hr />
+<h2>🔵 1. ARYAN (Ingestion, FastAPI Setup &amp; Base UI Shell)</h2>
+<h3>Current Status:</h3>
+<ul>
+<li>✅ <code>[DONE]</code> OCR document text parser (<code>src/ingestion/win_ocr.py</code>).</li>
+<li>✅ <code>[DONE]</code> Messy SME CSV Column Resolver (<code>src/ingestion/column_resolver.py</code>).</li>
+</ul>
+<h3>📌 EXACT REMAINING TASKS TO DO FOR REVIEW 2:</h3>
+<ul>
+<li>[ ] <strong>Task A.1 (SQLite Auto-Save)</strong>: Complete <code>src/ingestion/digitalizer.py</code> so that extracted OCR data and resolved CSV rows automatically insert into SQLite tables (<code>inventory_items</code> &amp; <code>digitalized_invoices</code>).</li>
+<li>[ ] <strong>Task A.2 (FastAPI Server Setup)</strong>: Create <code>src/api/main.py</code> with CORS middleware enabled for the web frontend.</li>
+<li>[ ] <strong>Task A.3 (Ingestion API Routes)</strong>: Create <code>src/api/routes/ingestion_routes.py</code> containing:</li>
+<li><code>POST /api/ingest/upload-file</code>: Accepts <code>.txt</code>/<code>.csv</code> uploads and calls <code>digitalizer.py</code>.</li>
+<li><code>GET /api/ingest/context</code>: Queries SQLite to return current stock warnings and liquid cash.</li>
+<li>[ ] <strong>Task A.4 (Frontend HTML &amp; Design System)</strong>: Create <code>frontend/index.html</code> and <code>frontend/css/main.css</code> with dark slate background (<code>#0F172A</code>), cyan headers (<code>#38BDF8</code>), and container grid layout.</li>
+<li>[ ] <strong>Task A.5 (Upload &amp; Data Table JS)</strong>: Create <code>frontend/js/ingestion_component.js</code> to handle file drag-and-drop uploads and render a live HTML table of SQLite inventory records.</li>
+</ul>
+<hr />
+<h2>🟢 2. KOHLI (2-Agent Engine, Arbitration API &amp; Decision Cards)</h2>
+<h3>Current Status:</h3>
+<ul>
+<li>⏳ <code>[IN PROGRESS]</code> Skeleton agent files created in <code>src/agents/</code>.</li>
+</ul>
+<h3>📌 EXACT REMAINING TASKS TO DO FOR REVIEW 2:</h3>
+<ul>
+<li>[ ] <strong>Task K.1 (Inventory Agent)</strong>: Edit <code>src/agents/inventory_agent.py</code> to query SQLite <code>inventory_items</code> for items where <code>current_stock &lt; min_threshold</code> and return a reorder recommendation object (e.g., <em>"Reorder SKU-001 for ₹50,000"</em>).</li>
+<li>[ ] <strong>Task K.2 (Finance Agent)</strong>: Edit <code>src/agents/finance_agent.py</code> to calculate free liquid cash (<code>Bank Cash - Payroll Reserve</code>) and return a budget ceiling object (e.g., <em>"Max spend allowed = ₹20,000"</em>).</li>
+<li>[ ] <strong>Task K.3 (2-Agent Arbitrator)</strong>: Edit <code>src/arbitration.py</code> to compare both agent outputs and apply the rule capping the inventory reorder to ₹20,000.</li>
+<li>[ ] <strong>Task K.4 (Agent API Routes)</strong>: Create <code>src/api/routes/agent_routes.py</code> with <code>POST /api/agents/evaluate</code> to run both agents and return the arbitrated decision JSON.</li>
+<li>[ ] <strong>Task K.5 (Agent Decision Cards JS)</strong>: Create <code>frontend/js/agent_component.js</code> to dynamically render:</li>
+<li>Yellow <strong>Inventory Agent Card</strong> (showing ₹50,000 requested).</li>
+<li>Blue <strong>Finance Agent Card</strong> (showing ₹20,000 budget cap).</li>
+<li>Green <strong>Arbitrated Action Card</strong> (showing final capped approval).</li>
+</ul>
+<hr />
+<h2>🟡 3. SOHAM (SHA-256 Audit Ledger, Payment API &amp; Security Modal UI)</h2>
+<h3>Current Status:</h3>
+<ul>
+<li>⏳ <code>[IN PROGRESS]</code> Basic database helpers initialized in <code>src/core/database.py</code>.</li>
+</ul>
+<h3>📌 EXACT REMAINING TASKS TO DO FOR REVIEW 2:</h3>
+<ul>
+<li>[ ] <strong>Task S.1 (SHA-256 Audit Engine)</strong>: Complete <code>src/core/audit.py</code> to hash all decision events into the SQLite <code>audit_ledger</code> table and implement <code>verify_chain()</code> to detect data tampering.</li>
+<li>[ ] <strong>Task S.2 (3-Way Math Audit &amp; Payment Client)</strong>: Complete <code>src/payment/gateway_client.py</code> to verify <code>Subtotal + Tax = Grand Total</code> and execute a mock payment that updates invoice status to <code>"PAID"</code>.</li>
+<li>[ ] <strong>Task S.3 (Settlement API Routes)</strong>: Create <code>src/api/routes/settlement_routes.py</code> containing:</li>
+<li><code>GET /api/settlement/audit-verify</code>: Returns SHA-256 chain integrity status.</li>
+<li><code>POST /api/settlement/pay-invoice</code>: Executes mock payment after 3-way math check passes.</li>
+<li>[ ] <strong>Task S.4 (Cryptographic Security Badge JS)</strong>: Create top header bar component in <code>frontend/js/audit_payment_component.js</code> displaying <strong>"SHA-256 Audit Ledger: 100% VERIFIED"</strong>.</li>
+<li>[ ] <strong>Task S.5 (Payment Checkout Modal JS)</strong>: Create popup confirmation modal in <code>frontend/js/audit_payment_component.js</code> displaying supplier name, 3-way math check status, capped amount, and a <strong>"Confirm &amp; Release Payment"</strong> button.</li>
+<li>[ ] <strong>Task S.6 (Literature Survey Presentation)</strong>: Assemble the 12-paper literature survey matrix for the Review 2 presentation deck.</li>
+</ul>
+<hr />
+<h2>🏁 Summary Checklist Matrix for Review 2</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Member</th>
+<th style="text-align: left;">Backend File to Write</th>
+<th style="text-align: left;">API Endpoint to Build</th>
+<th style="text-align: left;">Frontend JS File to Write</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>ARYAN</strong></td>
+<td style="text-align: left;"><code>src/ingestion/digitalizer.py</code><br><code>src/api/main.py</code></td>
+<td style="text-align: left;"><code>POST /api/ingest/upload-file</code><br><code>GET /api/ingest/context</code></td>
+<td style="text-align: left;"><code>frontend/js/ingestion_component.js</code><br><code>frontend/index.html</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>KOHLI</strong></td>
+<td style="text-align: left;"><code>src/agents/inventory_agent.py</code><br><code>src/agents/finance_agent.py</code><br><code>src/arbitration.py</code></td>
+<td style="text-align: left;"><code>POST /api/agents/evaluate</code></td>
+<td style="text-align: left;"><code>frontend/js/agent_component.js</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>SOHAM</strong></td>
+<td style="text-align: left;"><code>src/core/audit.py</code><br><code>src/payment/gateway_client.py</code></td>
+<td style="text-align: left;"><code>GET /api/settlement/audit-verify</code><br><code>POST /api/settlement/pay-invoice</code></td>
+<td style="text-align: left;"><code>frontend/js/audit_payment_component.js</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>📂 Master Project File Structure &amp; Strict Boundary Guidelines</h2>
+<blockquote>
+<p>⚠️ <strong>CRITICAL PROMPT &amp; INTEGRATION INSTRUCTIONS</strong>:
+When copying this file structure into AI tools or giving prompts to build your specific module, <strong>ONLY ask the AI to modify or generate files listed under YOUR name</strong>.
+<strong>DO NOT</strong> prompt an AI to edit, overwrite, or re-implement files owned by another member!</p>
+</blockquote>
+<pre><code class="language-text">Capstone Project/
+├── data/                                &lt;-- SHARED DATABASE &amp; TEST DATA (Read/Write via SQLite connection)
+│   ├── sme_digitalized_data.db          &lt;-- Single SQLite DB File
+│   └── sample_documents/                &lt;-- Test Invoices &amp; CSVs
+│
+├── src/
+│   ├── api/
+│   │   ├── main.py                      &lt;-- [OWNER: ARYAN] FastAPI Initialization &amp; CORS
+│   │   └── routes/
+│   │       ├── ingestion_routes.py      &lt;-- [OWNER: ARYAN] Ingestion &amp; Context Endpoints
+│   │       ├── agent_routes.py          &lt;-- [OWNER: KOHLI] Agent Evaluation &amp; Arbitration Endpoints
+│   │       └── settlement_routes.py     &lt;-- [OWNER: SOHAM] Payment &amp; Audit Endpoints
+│   │
+│   ├── ingestion/                       &lt;-- [OWNER: ARYAN] Layer 0 Data Extraction &amp; Loading
+│   │   ├── digitalizer.py
+│   │   ├── column_resolver.py
+│   │   └── win_ocr.py
+│   │
+│   ├── agents/                          &lt;-- [OWNER: KOHLI] 2-Agent Logic for Review 2
+│   │   ├── inventory_agent.py
+│   │   └── finance_agent.py
+│   ├── arbitration.py                   &lt;-- [OWNER: KOHLI] 2-Agent Conflict Arbitrator
+│   │
+│   ├── payment/                         &lt;-- [OWNER: SOHAM] Layer 3 Payment Gateway Execution
+│   │   └── gateway_client.py
+│   │
+│   └── core/                            &lt;-- [OWNER: SOHAM] Layer 4 Cryptographic Ledger
+│       ├── audit.py
+│       └── database.py
+│
+└── frontend/                            &lt;-- CUSTOM FRONTEND WEB UI
+    ├── css/
+    │   └── main.css                     &lt;-- [OWNER: ARYAN] Shared Dark Design System &amp; Layout
+    ├── index.html                       &lt;-- [OWNER: ARYAN] HTML Web Shell
+    └── js/
+        ├── ingestion_component.js       &lt;-- [OWNER: ARYAN] Upload Dropzone &amp; Inventory Table JS
+        ├── agent_component.js           &lt;-- [OWNER: KOHLI] Agent Decision Cards JS
+        └── audit_payment_component.js   &lt;-- [OWNER: SOHAM] Security Badge &amp; Payment Modal JS
+</code></pre>
+<hr />
+<h3>🔒 Module Integration Rules</h3>
+<ol>
+<li><strong>Aryan's Boundary</strong>: Owns data loading (<code>ingestion/</code>), main FastAPI server (<code>api/main.py</code>), and <code>ingestion_component.js</code>. Aryan's code writes raw documents to SQLite <code>inventory_items</code> and <code>digitalized_invoices</code>.</li>
+<li><strong>Kohli's Boundary</strong>: Owns <code>inventory_agent.py</code>, <code>finance_agent.py</code>, <code>arbitration.py</code>, <code>agent_routes.py</code>, and <code>agent_component.js</code>. Kohli's code reads from SQLite <code>inventory_items</code> and writes recommendations to <code>decision_logs</code>.</li>
+<li><strong>Soham's Boundary</strong>: Owns <code>audit.py</code>, <code>gateway_client.py</code>, <code>settlement_routes.py</code>, and <code>audit_payment_component.js</code>. Soham's code reads verified invoices, updates payment status to <code>"PAID"</code>, and hashes events into <code>audit_ledger</code>.</li>
+</ol>
+</body>
+</html>

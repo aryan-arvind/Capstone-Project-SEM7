@@ -79,7 +79,8 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
                 total_rows INTEGER NOT NULL,
                 valid_rows INTEGER NOT NULL,
                 error_rows INTEGER NOT NULL,
-                column_mapping_json TEXT
+                column_mapping_json TEXT,
+                detected_vertical TEXT DEFAULT 'general'
             );
         """)
 
@@ -93,7 +94,8 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
                 validation_status TEXT NOT NULL CHECK (validation_status IN ('VALID', 'WARNING', 'ERROR', 'DUPLICATE')),
                 validation_notes TEXT,
                 dedup_hash TEXT,
-                committed INTEGER NOT NULL DEFAULT 0
+                committed INTEGER NOT NULL DEFAULT 0,
+                attributes TEXT DEFAULT '{}'
             );
         """)
 
@@ -104,6 +106,48 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
                 updated_at TEXT NOT NULL
             );
         """)
+
+        # Production operational tables (created idempotently in every DB,
+        # including the standalone one, so commit_staged_records can INSERT here)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS inventory_items (
+                item_id TEXT PRIMARY KEY,
+                item_name TEXT NOT NULL,
+                current_stock REAL NOT NULL DEFAULT 0,
+                min_threshold REAL NOT NULL DEFAULT 10,
+                reorder_quantity REAL NOT NULL DEFAULT 50,
+                unit_cost REAL NOT NULL DEFAULT 0,
+                category TEXT DEFAULT 'General',
+                attributes TEXT DEFAULT '{}'
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_id TEXT,
+                supplier_name TEXT,
+                date TEXT,
+                subtotal REAL,
+                tax_amount REAL,
+                grand_total REAL,
+                verification_status TEXT DEFAULT 'VALIDATED',
+                raw_payload_json TEXT,
+                attributes TEXT DEFAULT '{}'
+            );
+        """)
+
+        # Idempotent column migrations for existing databases
+        def _add_column_if_missing(table_name: str, col_name: str, col_def: str):
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            cols = [r["name"] if isinstance(r, sqlite3.Row) else r[1] for r in cursor.fetchall()]
+            if col_name not in cols:
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
+
+        _add_column_if_missing("import_batch", "detected_vertical", "TEXT DEFAULT 'general'")
+        _add_column_if_missing("staged_records", "attributes", "TEXT DEFAULT '{}'")
+        _add_column_if_missing("inventory_items", "attributes", "TEXT DEFAULT '{}'")
+        _add_column_if_missing("invoices", "attributes", "TEXT DEFAULT '{}'")
 
         conn.commit()
 
@@ -275,8 +319,52 @@ def commit_staged_records(import_batch_id: int, record_ids_to_commit: List[int],
             
             parsed = json.loads(row["parsed_record_json"]) if row["parsed_record_json"] else None
             if parsed:
-                # If inventory record shape
-                if "item_name" in parsed or "current_stock" in parsed:
+                # Assemble merged attributes JSON (combining extension-tier fields & catch-all attributes)
+                CORE_AND_SYSTEM_KEYS = {
+                    "invoice_id", "invoice_date", "date", "supplier_name", "customer_name",
+                    "supplier_gstin", "customer_gstin", "po_number", "hsn_sac", "quantity",
+                    "unit_price", "line_total", "subtotal", "tax_rate_pct", "tax_amount",
+                    "grand_total", "payment_terms", "item_id", "item_name", "current_stock",
+                    "min_threshold", "reorder_quantity", "unit_cost", "category",
+                    "document_text", "verification_status", "raw_payload_json", "attributes"
+                }
+
+                attributes_dict = {}
+                if "attributes" in row.keys() and row["attributes"]:
+                    try:
+                        loaded_row_attrs = json.loads(row["attributes"])
+                        if isinstance(loaded_row_attrs, dict):
+                            attributes_dict.update(loaded_row_attrs)
+                    except Exception:
+                        pass
+
+                if "attributes" in parsed and isinstance(parsed["attributes"], dict):
+                    attributes_dict.update(parsed["attributes"])
+
+                for k, v in parsed.items():
+                    if k not in CORE_AND_SYSTEM_KEYS and v is not None and str(v).strip():
+                        clean_k = k.replace("attr:", "")
+                        attributes_dict[clean_k] = v
+
+                attributes_json = json.dumps(attributes_dict)
+
+                # Prioritize Invoice record if invoice_id, grand_total, or supplier_gstin is present
+                if "invoice_id" in parsed or "grand_total" in parsed or "supplier_gstin" in parsed:
+                    inv_id = str(parsed.get("invoice_id") or f"INV-{rec_id}")
+                    supp = parsed.get("supplier_name", "Staged Supplier")
+                    dt = parsed.get("invoice_date") or parsed.get("date") or "2026-09-07"
+                    sub = float(parsed.get("subtotal") or 0.0)
+                    tax = float(parsed.get("tax_amount") or 0.0)
+                    grand = float(parsed.get("grand_total") or (sub + tax))
+                    status = parsed.get("verification_status", "VALIDATED")
+                    cursor.execute("""
+                        INSERT INTO invoices
+                        (invoice_id, supplier_name, date, subtotal, tax_amount, grand_total, verification_status, raw_payload_json, attributes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (inv_id, supp, dt, sub, tax, grand, status, json.dumps(parsed), attributes_json))
+
+                # If inventory record shape (stock/cost/category)
+                if "current_stock" in parsed or ("item_name" in parsed and "unit_cost" in parsed):
                     item_id = parsed.get("item_id", f"SKU-{rec_id}")
                     item_name = parsed.get("item_name", f"Staged-Item-{rec_id}")
                     stock = float(parsed.get("current_stock", 0.0))
@@ -286,22 +374,9 @@ def commit_staged_records(import_batch_id: int, record_ids_to_commit: List[int],
                     cat = parsed.get("category", "General")
                     cursor.execute("""
                         INSERT OR REPLACE INTO inventory_items
-                        (item_id, item_name, current_stock, min_threshold, reorder_quantity, unit_cost, category)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (item_id, item_name, stock, min_thresh, reorder_qty, cost, cat))
-                elif "invoice_id" in parsed or "grand_total" in parsed:
-                    inv_id = parsed.get("invoice_id", f"INV-{rec_id}")
-                    supp = parsed.get("supplier_name", "Staged Supplier")
-                    dt = parsed.get("date", "2026-09-07")
-                    sub = float(parsed.get("subtotal", 0.0))
-                    tax = float(parsed.get("tax_amount", 0.0))
-                    grand = float(parsed.get("grand_total", sub + tax))
-                    status = parsed.get("verification_status", "VALIDATED")
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO invoices
-                        (invoice_id, supplier_name, date, subtotal, tax_amount, grand_total, verification_status, raw_payload_json)
+                        (item_id, item_name, current_stock, min_threshold, reorder_quantity, unit_cost, category, attributes)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (inv_id, supp, dt, sub, tax, grand, status, json.dumps(parsed)))
+                    """, (item_id, item_name, stock, min_thresh, reorder_qty, cost, cat, attributes_json))
 
             cursor.execute("UPDATE staged_records SET committed = 1 WHERE id = ?", (rec_id,))
             committed_count += 1
