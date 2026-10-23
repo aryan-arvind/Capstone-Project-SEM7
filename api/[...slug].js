@@ -30,15 +30,24 @@ const readBody = req => new Promise((resolve) => {
 });
 
 export default async function handler(req, res) {
-  const url = new URL(req.url, 'http://localhost');
-  const pathname = url.pathname;
+  // Determine route segments from req.query.slug or req.url
+  let segments = [];
+  if (req.query && req.query.slug) {
+    segments = Array.isArray(req.query.slug) ? req.query.slug : [req.query.slug];
+  } else {
+    const rawPath = (req.url || '').split('?')[0].replace(/^\/api\//, '/').replace(/^\//, '');
+    segments = rawPath.split('/').filter(Boolean);
+  }
 
-  if (pathname === '/api/health') {
+  const first = segments[0] || '';
+
+  if (first === 'health') {
     return sendJson(res, 200, { ok: true, version, name: cfg.name, departments: DEPARTMENTS.map(d => d.key) });
   }
 
-  if (pathname.startsWith('/api/msme/')) {
-    const op = pathname.slice('/api/msme/'.length).split('?')[0];
+  if (first === 'msme') {
+    const op = segments.slice(1).join('/');
+    const url = new URL(req.url, 'http://localhost');
     try {
       if (op === 'state' && req.method === 'GET') return sendJson(res, 200, session.snapshot());
       if (op === 'audit' && req.method === 'GET') {
@@ -67,12 +76,11 @@ export default async function handler(req, res) {
       if (op === 'cycle') return sendJson(res, 200, await session.cycle());
       if (op === 'inject') return sendJson(res, 200, session.inject(b.type));
       if (op === 'experiments') return sendJson(res, 200, session.startExperiment(b));
-      return sendJson(res, 404, { error: 'unknown msme endpoint' });
+      return sendJson(res, 404, { error: 'unknown msme endpoint: ' + op });
     } catch (e) {
       return sendJson(res, 400, { error: e.message });
     }
   }
 
-  res.writeHead(404);
-  res.end('Not Found');
+  return sendJson(res, 404, { error: 'not found', segments });
 }
