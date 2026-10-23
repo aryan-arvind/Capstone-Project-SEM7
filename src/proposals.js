@@ -24,7 +24,7 @@ export function initProposals(ctx) {
   const { R, getFocused, enterFocus, pushAgentEvent, onSnapshot } = ctx;
   const panel = document.getElementById('tpanel');
   const q = s => panel.querySelector(s);
-  const el = { strategy: q('.pp-strategy'), agents: q('.pp-agents'), seed: q('.pp-seed'), reset: q('.pp-reset'), inject: q('.pp-inject'), injbtn: q('.pp-injbtn'), run: q('.pp-run'),
+  const el = { strategy: q('.pp-strategy'), seed: q('.pp-seed'), reset: q('.pp-reset'), inject: q('.pp-inject'), injbtn: q('.pp-injbtn'), run: q('.pp-run'),
     hint: q('.tp-hint'), chips: q('.tp-chips'), rows: q('.tp-rows'), mode: q('.tp-mode'), scope: q('.tp-scope') };
   const top = document.getElementById('topmetrics');
 
@@ -33,7 +33,6 @@ export function initProposals(ctx) {
   const seen = new Map();   // id -> last state we announced on the desks
 
   el.strategy.innerHTML = STRATEGIES.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
-  el.agents.innerHTML = '<option value="mock">Rule-based agents</option><option value="llm">Claude agents</option>';
   el.inject.innerHTML = '<option value="">Inject a scenario…</option>' + SCENARIOS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
 
   const say = (msg, kind = '') => { el.hint.className = 'tp-hint on ' + kind; el.hint.innerHTML = msg; };
@@ -50,7 +49,7 @@ export function initProposals(ctx) {
   function apply(s) {
     snap = s; setSnapshot(s);
     for (const t of s.tasks) rows.set(t.id, { ...(rows.get(t.id) || {}), ...t, week: parseInt(String(t.id).slice(1), 10), changedAt: Date.now() });
-    el.strategy.value = s.strategy; el.agents.value = s.mode; if (document.activeElement !== el.seed) el.seed.value = s.seed;
+    el.strategy.value = s.strategy; if (document.activeElement !== el.seed) el.seed.value = s.seed;
     el.mode.hidden = false; el.mode.classList.add('live');
     el.mode.textContent = `WEEK ${s.week} · ${s.scenario === 'baseline' ? 'BASELINE' : s.scenario.replace(/_/g, ' ').toUpperCase()}`;
     drawTop(s); announce(s); render(); if (onSnapshot) onSnapshot(s);
@@ -82,7 +81,7 @@ export function initProposals(ctx) {
       if (s.conflicts.length) pushAgentEvent('arb_conflict', '⚔', `${s.conflicts.length} conflict${s.conflicts.length > 1 ? 's' : ''}: ${s.conflicts[0].detail}`);
       const caught = s.tasks.filter(t => t.blocked_by?.length).length;
       pushAgentEvent('arb_constraint', '⛨', caught ? `${caught} proposal${caught > 1 ? 's' : ''} stopped by a constraint` : 'All constraints hold for the chosen set');
-      if (s.tasks.some(t => t.reason)) pushAgentEvent('arb_explain', '✍', `Wrote ${s.tasks.filter(t => t.reason).length} explanations`);
+      if (s.tasks.some(t => t.reason)) pushAgentEvent('arb_explain', '✍', `Wrote ${s.tasks.filter(t => t.reason).length} reasons`);
       pushAgentEvent('arbiter_agent', '⚖', `${s.tasks.filter(t => t.outcome === 'approved').length} approved, ${s.tasks.filter(t => t.outcome === 'modified').length} modified, ${s.tasks.filter(t => t.outcome === 'rejected').length} rejected`);
     }
   }
@@ -129,10 +128,9 @@ export function initProposals(ctx) {
   async function runCycle() {
     await guard('cycle', async () => {
       el.run.disabled = true;
-      const llm = snap && snap.mode === 'llm';
-      say(llm ? '<b>Proposing</b> — six agents are being asked; Claude takes about a minute…' : '<b>Proposing</b>', 'busy');
+      say('<b>Proposing</b>', 'busy');
       apply(await call('propose', {}));
-      await pause(llm ? 400 : 700);
+      await pause(700);
       say('<b>Under arbitration</b> — checking the proposals against the constraints', 'busy');
       apply(await call('arbitrate', {}));
       await pause(900);
@@ -145,7 +143,7 @@ export function initProposals(ctx) {
   el.run.addEventListener('click', runCycle);
   el.reset.addEventListener('click', () => guard('reset', async () => {
     rows.clear(); seen.clear(); open = null;
-    apply(await call('reset', { seed: +el.seed.value || 1, strategy: el.strategy.value, mode: el.agents.value, explain: el.agents.value === 'llm' }));
+    apply(await call('reset', { seed: +el.seed.value || 1, strategy: el.strategy.value }));
     say('New company, week 0. Run a decision cycle.');
   }));
   el.injbtn.addEventListener('click', () => guard('inject', async () => {

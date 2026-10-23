@@ -9,7 +9,6 @@ export const METRICS = [
   ['ending_cash_inr', 'Ending cash (Rs)'],
   ['ending_net_worth_inr', 'Ending net worth (Rs)'],
   ['profit_inr', 'Operating profit (Rs)'],
-  ['tokens_per_cycle', 'Tokens per cycle'],
 ];
 
 const mean = xs => xs.reduce((s, x) => s + x, 0) / xs.length;

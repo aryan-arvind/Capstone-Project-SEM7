@@ -35,7 +35,6 @@ METRICS = [
     ("ending_cash_inr", "Ending cash (Rs)", "{:,.0f}"),
     ("ending_net_worth_inr", "Ending net worth (Rs)", "{:,.0f}"),
     ("profit_inr", "Operating profit (Rs)", "{:,.0f}"),
-    ("tokens_per_cycle", "Tokens per cycle", "{:,.0f}"),
 ]
 
 

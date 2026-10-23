@@ -1,18 +1,17 @@
 // The six department agents. Each makes ONE proposal call per decision cycle (the desks inside a
 // department are presentation only and make no call of their own).
 //
-//   mock : a deterministic, rule-based proposer that reads the same state summary an LLM agent would.
-//          Free, instant and reproducible; used for the large experiments and the tests.
-//   llm  : the real thing, through llm.mjs, validated by schema.mjs with bounded retries.
+// Each agent is a deterministic, rule-based proposer that reads a numeric summary of the books. It is
+// free, instant and reproducible. Every proposal it returns is checked against the schema (schema.mjs).
 //
-// Neither mode is told the hard constraints: a specialist recommends what is best for its own
+// The agents are not told the hard constraints: a specialist recommends what is best for its own
 // department, and finding out whether the set fits the company's cash is the Arbiter's job.
-import { ACTIONS, actionsOf } from './actions.mjs';
+import { actionsOf } from './actions.mjs';
 import { DECISION_DEPTS } from './roster.mjs';
 import { stream, mix } from './rng.mjs';
 import { arTotal, apTotal, incomingUnits, sum } from './books.mjs';
 import { project } from './sim.mjs';
-import { proposeWithRetry } from './schema.mjs';
+import { validateProposal } from './schema.mjs';
 
 const k1000 = x => Math.max(1000, Math.round(x / 1000) * 1000);
 
@@ -46,7 +45,7 @@ export function stateSummary(st, p) {
   };
 }
 
-/* ------------------------------------------------------------------ the deterministic proposer */
+/* ------------------------------------------------------------------ the proposers */
 const IMPACT = { // what an agent would claim the cash effect within the horizon is, as a share of the amount
   accept_bulk_order: 0, extend_credit_terms: -0.5, clear_stock_discount: 0.85,
   place_reorder: 0, prepay_supplier_discount: -1,
@@ -112,40 +111,19 @@ export function mockPropose(deptKey, st, p, seed = 0) {
   return out.slice(0, 3);
 }
 
-/* ------------------------------------------------------------------ the prompt for a real model */
-const describe = type => `${type}: ${ACTIONS[type].label}`;
-export function buildPrompt(deptKey, st, p) {
-  const d = DECISION_DEPTS.find(x => x.key === deptKey), v = stateSummary(st, p);
-  const system = [
-    `You are the ${d.agent.role} of an Indian MSME manufacturer (all money in Indian rupees, whole numbers).`,
-    d.agent.does,
-    'Each week you recommend up to 3 actions from your own department\'s menu. You do not make the final call: an Arbiter decides which recommendations the company can afford together.',
-    'Reply with JSON only, no prose and no code fence, in exactly this shape:',
-    '{"proposals":[{"agent":"' + d.agent.id + '","action_type":"<one of the menu>","amount_inr":<whole rupees>,"timing_week":<whole week number>,"cash_impact_inr":<whole rupees, negative = cash out>,"confidence":<0 to 1>,"rationale":"<one or two sentences>"}]}',
-    'Your menu:\n' + actionsOf(deptKey).map(describe).join('\n'),
-    `timing_week is the week the action happens, from the current week to the current week + ${p.sim.horizon_weeks - 1}. cash_impact_inr is the net effect on the company's bank balance within the next ${p.sim.horizon_weeks} weeks.`,
-  ].join('\n\n');
-  const user = `Current books (week ${v.week}):\n${JSON.stringify(v, null, 1)}\n\nGive your proposals for this week.`;
-  return { system, user, ctx: { agentId: d.agent.id, allowed: actionsOf(deptKey), week: st.week, horizon: p.sim.horizon_weeks } };
-}
-
 /**
- * One decision cycle's proposals from all six departments.
- * mode 'mock' | 'llm'. Returns { proposals, calls, tokens, failures }.
+ * One decision cycle's proposals from all six departments. A proposal that fails the schema is
+ * dropped and reported in `failures` (it never reaches the Arbiter).
+ * Returns { proposals, failures }.
  */
-export async function proposeAll({ state, p, mode = 'mock', llm = null, seed = 0, maxRetries = 2 }) {
-  const proposals = [], failures = []; let calls = 0, tokens = 0; const detail = { in: 0, out: 0, cache: 0 };
-  if (mode === 'mock') {
-    for (const d of DECISION_DEPTS) proposals.push(...mockPropose(d.key, state, p, seed));
-    return { proposals, calls: 0, tokens: 0, tokenDetail: { in: 0, out: 0, cache: 0 }, failures };
+export function proposeAll({ state, p, seed = 0 }) {
+  const proposals = [], failures = [];
+  for (const d of DECISION_DEPTS) {
+    const ctx = { agentId: d.agent.id, allowed: actionsOf(d.key), week: state.week, horizon: p.sim.horizon_weeks };
+    for (const pr of mockPropose(d.key, state, p, seed)) {
+      const v = validateProposal(pr, ctx);
+      if (v.ok) proposals.push(v.value); else failures.push({ dept: d.key, errors: v.errors });
+    }
   }
-  const results = await Promise.all(DECISION_DEPTS.map(async d => {
-    const { system, user, ctx } = buildPrompt(d.key, state, p);
-    return { d, r: await proposeWithRetry({ ask: llm.ask, system, user, ctx, maxRetries }) };
-  }));
-  for (const { d, r } of results) {
-    calls += r.attempts; tokens += r.tokens; for (const k of Object.keys(detail)) detail[k] += r.tokenDetail[k];
-    if (r.proposals.length) proposals.push(...r.proposals); else failures.push({ dept: d.key, errors: r.errors });
-  }
-  return { proposals, calls, tokens, tokenDetail: detail, failures };
+  return { proposals, failures };
 }

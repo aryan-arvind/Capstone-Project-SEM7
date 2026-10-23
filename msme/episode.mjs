@@ -4,45 +4,37 @@ import { PARAMS } from './params.mjs';
 import { initState, step, schedule, metrics } from './sim.mjs';
 import { proposeAll } from './agents.mjs';
 import { decide } from './strategies.mjs';
-import { explainDecisions } from './arbiter.mjs';
 import { realizedViolations, CONSTRAINTS } from './constraints.mjs';
 import { apTotal, arTotal, sum } from './books.mjs';
 
 const netWorth = (st, p) => st.cash + arTotal(st) + st.inv.units * p.sim.unit_cost - apTotal(st) - st.od.used - st.gstPayable;
 
 /** Run one decision cycle on a live state: propose, decide, execute (schedule), advance a week. */
-export async function runCycle({ st, strategy, p = PARAMS, mode = 'mock', llm = null, seed = st.seed, explain = false }) {
-  const pr = await proposeAll({ state: st, p, mode, llm, seed });
+export function runCycle({ st, strategy, p = PARAMS, seed = st.seed }) {
+  const pr = proposeAll({ state: st, p, seed });
   const decision = decide(strategy, pr.proposals, st, p);
-  let explainTokens = 0;
-  if (explain && llm && strategy === 'constraint_aware') {
-    const e = await explainDecisions(decision.decisions, llm);
-    explainTokens = e.tokens;
-    for (const d of decision.decisions) d.explanation = e.texts[d.id];
-  }
   for (const e of decision.executed) schedule(st, e);
   const week = st.week;
   const rec = step(st, { p });
   const realized = realizedViolations(st, p);
-  return { week, proposals: pr.proposals, decision, record: rec, realized, tokens: pr.tokens + explainTokens, tokenDetail: pr.tokenDetail, calls: pr.calls + (explainTokens ? 1 : 0), failures: pr.failures };
+  return { week, proposals: pr.proposals, decision, record: rec, realized, failures: pr.failures };
 }
 
-export async function runEpisode({ seed, scenario = 'baseline', strategy = 'constraint_aware', p = PARAMS, mode = 'mock', llm = null, explain = false, keepAudit = false }) {
+export function runEpisode({ seed, scenario = 'baseline', strategy = 'constraint_aware', p = PARAMS, keepAudit = false }) {
   const st = initState(seed, scenario, p);
   const weekly = [], audit = [];
-  const tot = { tokens: 0, calls: 0, failures: 0, proposals: 0, approved: 0, modified: 0, rejected: 0, predictedViolationCycles: 0, caught: 0, tokensIn: 0, tokensOut: 0, tokensCache: 0 };
+  const tot = { proposals: 0, approved: 0, modified: 0, rejected: 0, predictedViolationCycles: 0, caught: 0 };
   const byConstraint = Object.fromEntries(CONSTRAINTS.map(c => [c, 0]));
   let violationWeeks = 0, violationCount = 0, minCash = Infinity; const ccc = [];
   for (let w = 0; w < p.sim.episode_weeks; w++) {
-    const c = await runCycle({ st, strategy, p, mode, llm, seed, explain });
+    const c = runCycle({ st, strategy, p, seed });
     const m = metrics(st, p);
     ccc.push(m.ccc);
     minCash = Math.min(minCash, st.cash);
     if (c.realized.length) violationWeeks++;
     violationCount += c.realized.length;
     for (const v of c.realized) byConstraint[v.constraint]++;
-    tot.tokens += c.tokens; tot.calls += c.calls; tot.failures += c.failures.length; tot.proposals += c.decision.decisions.length;
-    tot.tokensIn += c.tokenDetail?.in || 0; tot.tokensOut += c.tokenDetail?.out || 0; tot.tokensCache += c.tokenDetail?.cache || 0;
+    tot.proposals += c.decision.decisions.length;
     for (const d of c.decision.decisions) { tot[d.outcome]++; if (d.outcome !== 'approved' && d.blocked_by.length) tot.caught++; }
     if (c.decision.violations_predicted.length) tot.predictedViolationCycles++;
     weekly.push({ week: w, cash: st.cash, ar: arTotal(st), ap: apTotal(st), inv_units: st.inv.units, od_used: st.od.used, od_limit: st.od.limit, stockout_units: c.record.stockout,
@@ -51,7 +43,7 @@ export async function runEpisode({ seed, scenario = 'baseline', strategy = 'cons
   }
   const m = metrics(st, p), n = p.sim.episode_weeks;
   const row = {
-    seed, scenario, strategy, mode, weeks: n,
+    seed, scenario, strategy, weeks: n,
     violation_rate: violationWeeks / n, violation_weeks: violationWeeks, violations: violationCount,
     ...Object.fromEntries(CONSTRAINTS.map(c => ['v_' + c.toLowerCase(), byConstraint[c]])),
     predicted_violation_rate: tot.predictedViolationCycles / n,
@@ -60,8 +52,6 @@ export async function runEpisode({ seed, scenario = 'baseline', strategy = 'cons
     ccc_days: +(sum(ccc) / ccc.length).toFixed(2), dso_days: +m.dso.toFixed(2), dpo_days: +m.dpo.toFixed(2),
     interest_inr: st.stats.interest, penalties_inr: st.stats.penalties,
     proposals: tot.proposals, approved: tot.approved, modified: tot.modified, rejected: tot.rejected, caught: tot.caught,
-    tokens_per_cycle: +(tot.tokens / n).toFixed(1), llm_calls: tot.calls, schema_failures: tot.failures,
-    tokens_in: tot.tokensIn, tokens_out: tot.tokensOut, tokens_cache: tot.tokensCache,
   };
   return { row, weekly, audit, state: st };
 }

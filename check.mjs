@@ -1,5 +1,5 @@
 // MSME working-capital office — the build loop.
-//   node check.mjs        config + build + offline page smoke + unit tests (no Claude calls)
+//   node check.mjs        config + build + offline page smoke + unit tests
 // Every step prints ✓ or ✗ with the reason; the process exits 1 if anything failed.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';

@@ -3,7 +3,6 @@
 //
 //   node msme/run.mjs --seeds 30                      all scenarios, all strategies, deterministic proposers
 //   node msme/run.mjs --seeds 5 --scenarios baseline,demand_surge --strategies independent,constraint_aware
-//   node msme/run.mjs --seeds 3 --llm --explain       real Claude proposals (+ explanations for the Arbiter)
 //   node msme/run.mjs --seeds 30 --set objective.w_liquidity=1 --out results/sens-liquidity   a sensitivity run
 //
 // Writes results/results.csv (one row per episode) and results/results.json (rows, weekly traces,
@@ -21,19 +20,20 @@ import { summarize, paired } from './stats.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export async function runExperiment({ seeds = 30, firstSeed = 1, scenarios = SCENARIOS, strategies = STRATEGIES, weeks, mode = 'mock', llm = null, explain = false, p = loadParams(), onProgress = () => {} } = {}) {
+export async function runExperiment({ seeds = 30, firstSeed = 1, scenarios = SCENARIOS, strategies = STRATEGIES, weeks, p = loadParams(), onProgress = () => {} } = {}) {
   if (weeks) p = { ...p, sim: { ...p.sim, episode_weeks: weeks } };
   const rows = [], weekly = [];
   const total = seeds * scenarios.length * strategies.length; let done = 0;
   for (let k = 0; k < seeds; k++) for (const scenario of scenarios) for (const strategy of strategies) {
     const seed = firstSeed + k;
-    const r = await runEpisode({ seed, scenario, strategy, p, mode, llm, explain });
+    const r = runEpisode({ seed, scenario, strategy, p });
     rows.push(r.row);
     for (const w of r.weekly) weekly.push({ seed, scenario, strategy, ...w });
     onProgress(++done, total, r.row);
+    await new Promise(res => setImmediate(res)); // let the server answer progress polls during a long run
   }
   return {
-    meta: { created: new Date().toISOString(), mode, llm_backend: llm?.backend || null, llm_model: llm?.model || null, explain, seeds, first_seed: firstSeed, scenarios, strategies,
+    meta: { created: new Date().toISOString(), seeds, first_seed: firstSeed, scenarios, strategies,
       episode_weeks: p.sim.episode_weeks, params_sha256: createHash('sha256').update(JSON.stringify(p)).digest('hex').slice(0, 16), params: p },
     rows, weekly, summary: summarize(rows),
     comparisons: Object.fromEntries(scenarios.map(sc => [sc, Object.fromEntries(strategies.filter(s => s !== 'constraint_aware').map(s => [s, paired(rows, sc, 'constraint_aware', s)]))])),
@@ -81,12 +81,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const scenarios = list(a.scenarios, SCENARIOS), strategies = list(a.strategies, STRATEGIES);
   for (const s of scenarios) if (!SCENARIOS.includes(s)) { console.error('unknown scenario: ' + s + ' (' + SCENARIOS.join(', ') + ')'); process.exit(2); }
   for (const s of strategies) if (!STRATEGIES.includes(s)) { console.error('unknown strategy: ' + s + ' (' + STRATEGIES.join(', ') + ')'); process.exit(2); }
-  let llm = null;
-  if (a.llm) { const { createLLM } = await import('./llm.mjs'); llm = await createLLM({ model: a.model || 'sonnet' }); console.log('LLM proposals via ' + llm.backend + ' (' + llm.model + ')'); }
   const t0 = Date.now();
   const result = await runExperiment({
     seeds: +a.seeds || 30, firstSeed: +a['first-seed'] || 1, scenarios, strategies, weeks: a.weeks ? +a.weeks : undefined,
-    mode: a.llm ? 'llm' : 'mock', llm, explain: !!a.explain, p: applyOverrides(loadParams(), a.set),
+    p: applyOverrides(loadParams(), a.set),
     onProgress: (d, t) => { if (d % Math.max(1, Math.floor(t / 20)) === 0 || d === t) process.stdout.write(`\r${d}/${t} episodes`); },
   });
   const dir = writeResults(result, a.out ? path.resolve(a.out) : undefined);

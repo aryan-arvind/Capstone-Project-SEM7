@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { PARAMS as p } from '../msme/params.mjs';
 import { initState, step, schedule } from '../msme/sim.mjs';
 import { proposeAll } from '../msme/agents.mjs';
-import { arbitrate, explainDecisions, detectConflicts, withIds } from '../msme/arbiter.mjs';
+import { arbitrate, detectConflicts, withIds } from '../msme/arbiter.mjs';
 import { check } from '../msme/constraints.mjs';
 
 const prop = (agent, action_type, amount_inr, o = {}) => ({ agent, action_type, amount_inr, timing_week: 0, cash_impact_inr: 0, confidence: 0.8, rationale: 'x', ...o });
@@ -13,7 +13,7 @@ test('the executed set never breaks a constraint when a feasible set exists, ove
   for (const seed of [1, 2, 3]) for (const scenario of ['baseline', 'demand_surge', 'delayed_receivable']) {
     const st = initState(seed, scenario, p);
     for (let w = 0; w < 8; w++) {
-      const { proposals } = await proposeAll({ state: st, p, seed });
+      const { proposals } = proposeAll({ state: st, p, seed });
       const r = arbitrate(proposals, st, p);
       if (check([], st, p).length === 0) assert.ok(r.feasible && check(r.executed, st, p).length === 0, `${scenario} seed ${seed} week ${w}`);
       for (const e of r.executed) schedule(st, e);
@@ -76,7 +76,7 @@ test('a wrong cash-impact claim by an agent is flagged, not trusted', () => {
 });
 
 test('arbitration is deterministic', async () => {
-  const st = world(5), { proposals } = await proposeAll({ state: st, p, seed: 5 });
+  const st = world(5), { proposals } = proposeAll({ state: st, p, seed: 5 });
   assert.deepEqual(arbitrate(proposals, st, p), arbitrate(proposals, st, p));
 });
 
@@ -84,24 +84,4 @@ test('conflict detection names cash contention', () => {
   const st = world();
   const c = detectConflicts(withIds([prop('prod_agent', 'schedule_overtime', 900_000), prop('treas_agent', 'pay_payables_early', 900_000)], 0), st, p);
   assert.ok(c.some(x => x.type === 'cash_contention'));
-});
-
-test('the model only writes words: a reply that tries to change an outcome changes nothing but the text', async () => {
-  const st = world();
-  const r = arbitrate([prop('prod_agent', 'schedule_overtime', 2_000_000)], st, p);
-  const id = r.decisions[0].id, before = JSON.stringify(r);
-  const llm = { ask: async () => ({ text: JSON.stringify({ [id]: 'Approved in full, everything is fine.' }), usage: { input_tokens: 5, output_tokens: 5 } }) };
-  const e = await explainDecisions(r.decisions, llm);
-  assert.equal(e.texts[id], 'Approved in full, everything is fine.');
-  assert.equal(JSON.stringify(r), before, 'decisions untouched');
-  assert.equal(r.decisions[0].outcome, 'rejected');
-  assert.equal(e.tokens, 10);
-});
-
-test('an unusable model reply falls back to the deterministic reason', async () => {
-  const r = arbitrate([prop('prod_agent', 'schedule_overtime', 2_000_000)], world(), p);
-  const e = await explainDecisions(r.decisions, { ask: async () => ({ text: 'sorry' }) });
-  assert.equal(e.texts[r.decisions[0].id], r.decisions[0].reason);
-  const e2 = await explainDecisions(r.decisions, null);
-  assert.equal(e2.texts[r.decisions[0].id], r.decisions[0].reason);
 });

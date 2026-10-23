@@ -11,7 +11,7 @@ front end: you watch the proposals arrive, get arbitrated and execute, and read 
 
 ![The office after four decision cycles](assets/screenshot-overview.png)
 
-* The language model proposes and explains. It never decides feasibility or arbitration.
+* The department agents are rule-based proposers. Feasibility and arbitration are decided by the Arbiter, in plain deterministic code.
 * Same seed, same result. Every strategy faces the same world for a given seed.
 * All money is whole rupees, shown with Indian grouping.
 
@@ -32,8 +32,8 @@ approved actions and advances one week. **INJECT** adds a shock the agents canno
 new company (strategy, agent type, seed). **G** opens the audit log, **E** the experiments, a click on a pod
 filters the proposals to that department.
 
-Agents are rule-based by default (free, instant, reproducible). Choose *Claude agents* to make one real model
-call per department per cycle, on your own Claude Code login or `ANTHROPIC_API_KEY`.
+The project needs no external service, API key or model: the agents are deterministic rules, so every run is free,
+instant and reproducible.
 
 ## Run the experiments
 
@@ -41,7 +41,6 @@ call per department per cycle, on your own Claude Code login or `ANTHROPIC_API_K
 # N seeds x scenarios x strategies; writes results/results.csv and results/results.json
 node msme/run.mjs --seeds 30
 node msme/run.mjs --seeds 5 --scenarios baseline,demand_surge --strategies independent,constraint_aware
-node msme/run.mjs --seeds 3 --llm --explain        # real Claude proposals + explanations (slow, uses your plan)
 node msme/run.mjs --seeds 30 --set objective.w_liquidity=1 --out results/sens   # a sensitivity run
 
 python scripts/plots.py                            # figures -> results/figures, tables -> results/tables.md / .tex
@@ -50,8 +49,7 @@ node scripts/sensitivity.mjs                       # the Arbiter's design varian
 
 `results.csv` has one row per episode (seed, scenario, strategy) with: constraint-violation rate and its
 split by constraint, minimum cash, stock-out units and weeks, cash conversion cycle, ending cash, ending net
-worth, operating profit, interest, penalties, proposals approved/modified/rejected, tokens per cycle and model
-calls. `results.json` adds weekly traces, 95% intervals, paired comparisons and the exact parameters used.
+worth, operating profit, interest, penalties, proposals approved/modified/rejected. `results.json` adds weekly traces, 95% intervals, paired comparisons and the exact parameters used.
 The same run is available from the page (button **EXPERIMENTS**). The 30-seed run reported below, its figures and
 tables are in [docs/results](docs/results).
 
@@ -67,18 +65,17 @@ tables are in [docs/results](docs/results).
                     +-----------------------------------------------------------------------------+
                           |            |              |               |               |
                    agents.mjs     strategies.mjs   constraints.mjs   arbiter.mjs     sim.mjs + actions.mjs + books.mjs
-                   propose        independent /    check()           objective +     seeded weekly company,
-                   (mock | LLM)   priority_vote /  (5 hard rules)    exact search    scenario injectors
+                   rule-based     independent /    check()           objective +     seeded weekly company,
+                   proposers      priority_vote /  (5 hard rules)    exact search    scenario injectors
                    schema.mjs     constraint_aware                    audit records
-                   llm.mjs                                            explainDecisions() = the only model use
 ```
 
 One decision cycle, which is also the status flow of the proposals panel:
 
 1. **Proposed.** Each department agent receives the state summary and returns up to three proposals as JSON,
    `{agent, action_type, amount_inr, timing_week, cash_impact_inr, confidence, rationale}`. `schema.mjs`
-   validates every field; a malformed reply is rejected with the exact errors and the agent is asked again, at most
-   twice more. The agents are not told the hard constraints.
+   validates every field (types, ranges, allowed action types, timing window) and a proposal that fails is dropped
+   before it reaches the Arbiter. The agents are not told the hard constraints.
 2. **Under arbitration.** The strategy turns proposals into decisions. The Arbiter detects conflicts, searches for the
    best feasible subset (reducing amounts where that helps) and writes an audit record per proposal. A proposal that
    is rejected or cut because of a constraint is shown as **Blocked by constraint**.
@@ -87,8 +84,8 @@ One decision cycle, which is also the status flow of the proposals panel:
 
 ### The configuration is one file
 
-`msme/config/roster.json` defines the departments, the one LLM-backed agent per department and the lightweight desk
-roles (three per department, no model call of their own). The 3D office, the engine and the checks all read it.
+`msme/config/roster.json` defines the departments, the one agent per department and the lightweight desk
+roles (three per department, presentation only). The 3D office, the engine and the checks all read it.
 `msme/config/params.json` holds every number the simulator, the constraints and the objective use; the assumptions are
 listed in [docs/assumptions.md](docs/assumptions.md).
 
@@ -113,9 +110,9 @@ Maximises `J(S) = w_profit * sum(confidence * profit) + w_risk * sum(confidence 
 min(min_headroom(S), liquidity_target)` over the subsets that violate no constraint. With at most 12 proposals it
 evaluates every subset exactly; beyond that it builds greedily. It then refines the amount of each proposal over
 {0, 25, 50, 75, 100}%. If a shock has already broken a constraint it picks the set with the smallest total violation. Contradictory pairs
-(draw vs repay the overdraft, delay vs settle suppliers, ...) are mutually exclusive. The model is used in one place,
-`explainDecisions`, to put each decision into a plain sentence; it is handed the outcome as a fact and cannot change
-it (tested). OR-Tools is not used: at this problem size exact enumeration is cheaper and needs no dependency.
+(draw vs repay the overdraft, delay vs settle suppliers, ...) are mutually exclusive. Every decision gets a plain-language
+reason generated from the facts of the search (which constraint it would break, which action it contradicts, how much
+it would cost the objective). OR-Tools is not used: at this problem size exact enumeration is cheaper and needs no dependency.
 
 ### The baselines (`msme/strategies.mjs`)
 
@@ -158,9 +155,6 @@ What the audit shows, including what does not favour the Arbiter:
 4. **The 45-day rule almost never binds** in this model (0.00 to 0.16 weeks per episode for the baselines). In the traces
    inspected the compliance agent settles aged MSME invoices before the limit and the treasury agent's delays mostly
    hit non-MSME invoices. The covenant, the cash buffer and warehouse space do the work.
-5. **Token cost.** Rule-based runs cost no tokens. In a real run (one cycle, Claude Sonnet, six agents plus the
-   explanations) the model made 7 calls and used 17,219 input+output tokens (prompt-cache reads excluded), about 88 s,
-   0 schema failures. A 12-week episode is about twelve times that per strategy, so LLM experiments are limited to a few seeds.
 
 [docs/sensitivity.md](docs/sensitivity.md) shows how the Arbiter's own design choices move these numbers (30 seeds):
 
@@ -177,9 +171,8 @@ What the audit shows, including what does not favour the Arbiter:
 
 * The company, the effect of each action and every parameter are modelling assumptions
   ([docs/assumptions.md](docs/assumptions.md)); the results describe this model, not a real firm.
-* The rule-based proposers are hand-written heuristics. Claude agents behave differently (in the one real cycle they
-  proposed several contradictory pairs, such as a reorder and a prepayment for the same stock); only one Claude cycle
-  was run end to end.
+* The department agents are hand-written heuristics, not learned or language-model agents. Other proposers would
+  produce different conflicts; the Arbiter and the experiment accept any source of schema-valid proposals.
 * The simulator and the constraint layer share their effect models, so the Arbiter's forecast is correct except for the
   shocks and the random demand and payment delays. Real books are not that kind to a forecaster.
 * One company, 12-week episodes, 30 seeds per cell; intervals are t-intervals over seeds.
@@ -190,10 +183,10 @@ What the audit shows, including what does not favour the Arbiter:
 |---|---|
 | **System design**: agents, desks, Arbiter, constraint layer, interfaces | `msme/config/roster.json`, `msme/agents.mjs`, `msme/arbiter.mjs`, `msme/constraints.mjs`, the architecture above |
 | Problem model, assumptions | `msme/sim.mjs`, `msme/actions.mjs`, `msme/config/params.json`, [docs/assumptions.md](docs/assumptions.md) |
-| Structured proposals, retries | `msme/schema.mjs`, `test/schema.test.mjs` |
+| Structured proposals and their validation | `msme/schema.mjs`, `test/schema.test.mjs` |
 | Objective and search | `msme/arbiter.mjs` (header comment states the objective) |
 | **Implementation**: simulator, API, 3D front end, audit log | `msme/session.mjs`, `serve.mjs`, `src/proposals.js`, `src/audit.js`, `data/audit.jsonl` |
-| Reproducibility and verification | `test/*.test.mjs` (58 tests), `check.mjs`, seeded noise in `msme/rng.mjs` |
+| Reproducibility and verification | `test/*.test.mjs` (51 tests), `check.mjs`, seeded noise in `msme/rng.mjs` |
 | **Empirical audit**: baselines, metrics, runner | `msme/strategies.mjs`, `msme/episode.mjs`, `msme/run.mjs`, `msme/stats.mjs` |
 | Figures and tables | `scripts/plots.py`, [docs/results](docs/results) |
 | Sensitivity / ablation | `scripts/sensitivity.mjs`, [docs/sensitivity.md](docs/sensitivity.md) |

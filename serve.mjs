@@ -2,13 +2,10 @@
 //   npm start  ->  http://localhost:4520
 // Serves the 3D office (dist/command-centre-v2.html) and the engine API under /api/msme (see
 // msme/session.mjs). Nothing here makes a financial decision: the engine does, in plain code.
-// Real model calls (agents written by Claude, the Arbiter's explanations) go through msme/llm.mjs,
-// on your own Claude Code login or ANTHROPIC_API_KEY; the default agents are rule-based and free.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig, ROOT } from './config.mjs';
-import { createLLM } from './msme/llm.mjs';
 import { createSession } from './msme/session.mjs';
 import { DEPARTMENTS } from './msme/roster.mjs';
 
@@ -16,7 +13,7 @@ const cfg = loadConfig();
 const DATA = path.join(ROOT, 'data');
 const HTML = path.join(ROOT, 'dist', 'command-centre-v2.html');
 const version = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch { return '?'; } })();
-const session = createSession({ dataDir: DATA, llmFactory: () => createLLM({ model: cfg.model }) });
+const session = createSession({ dataDir: DATA });
 
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
 const readBody = req => new Promise((resolve, reject) => { let s = ''; req.on('data', d => { s += d; }); req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } }); });
@@ -30,7 +27,7 @@ const server = http.createServer(async (req, res) => {
       const page = fs.readFileSync(HTML, 'utf8');
       return res.end(url.pathname === '/dark' ? page.replace('<body>', '<body class="dark">') : page);
     }
-    if (url.pathname === '/api/health') return json(res, 200, { ok: true, version, name: cfg.name, model: cfg.model, backend: process.env.ANTHROPIC_API_KEY ? 'anthropic-sdk' : 'claude-cli', departments: DEPARTMENTS.map(d => d.key) });
+    if (url.pathname === '/api/health') return json(res, 200, { ok: true, version, name: cfg.name, departments: DEPARTMENTS.map(d => d.key) });
     if (!url.pathname.startsWith('/api/msme/')) { res.writeHead(404); return res.end('not found'); }
 
     const op = url.pathname.slice('/api/msme/'.length);
@@ -63,5 +60,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(cfg.port, () => {
   console.log(`MSME working-capital arbiter ${version} → http://localhost:${cfg.port}`);
   console.log(`  company: ${cfg.name}   departments: ${DEPARTMENTS.length}   audit log: ${path.join(DATA, 'audit.jsonl')}`);
-  console.log(`  model for Claude agents: ${cfg.model} (${process.env.ANTHROPIC_API_KEY ? 'Anthropic API' : 'your Claude Code login'}); default agents are rule-based and free`);
 });

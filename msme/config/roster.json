@@ -1,5 +1,5 @@
 {
-  "_about": "The single source of truth for the MSME working-capital office: departments, the one LLM-backed agent per department, and the lightweight desk roles (no LLM call of their own). src/data.js (3D office), roster.mjs (server) and msme/*.mjs (engine) all read this file. 'slot' only places the pod on the floor.",
+  "_about": "The single source of truth for the MSME working-capital office: departments, the one agent per department, and the lightweight desk roles (not separate agents). src/data.js (3D office), msme/roster.mjs and the engine all read this file. 'slot' only places the pod on the floor.",
   "title": "MSME Working-Capital Arbiter",
   "company": "Meridian Auto Components (MSME)",
   "currency": "INR",
@@ -87,7 +87,7 @@
       "colour": { "chip": "#D1DECD", "ink": "#4C7A57", "floor": "#E9EFE4" },
       "priority": 1,
       "agent": { "id": "arbiter_agent", "name": "ARBITER", "role": "Constraint-Aware Arbiter",
-        "does": "Takes every department's proposals for the week, drops or trims the ones that break a hard financial constraint, and keeps the best feasible set. Plain code decides; the model only writes the explanation.",
+        "does": "Takes every department's proposals for the week, drops or trims the ones that break a hard financial constraint, and keeps the best feasible set. Plain code decides, and writes the reason for each decision.",
         "actions": [] },
       "desks": [
         { "id": "arb_conflict", "name": "CONFLICT DETECTOR", "role": "Conflict Detector Desk", "does": "Finds proposals that fight over the same cash or contradict each other." },

@@ -169,23 +169,3 @@ export function arbitrate(rawProposals, state, p = PARAMS) {
     search: { method, proposals: n, evaluated },
   };
 }
-
-/* ------------------------------------------------------------------ the only place a model is used: words */
-/**
- * Ask a model to explain each decision in plain language. The outcome and the numbers are fixed facts
- * handed to it; it cannot change them. When llm is null, the model fails, or its reply is unusable, the
- * deterministic reason stays. Returns { texts: {id: sentence}, tokens }.
- */
-export async function explainDecisions(decisions, llm) {
-  const texts = Object.fromEntries(decisions.map(d => [d.id, d.reason]));
-  if (!llm || !decisions.length) return { texts, tokens: 0 };
-  const facts = decisions.map(d => ({ id: d.id, agent: d.agent, action: d.label, requested_inr: d.amount_requested_inr, approved_inr: d.amount_approved_inr, outcome: d.outcome, reason: d.reason }));
-  const system = 'You write short explanations for a small-business owner in India. For each decision, write one plain sentence (under 35 words) saying what happened and why, using only the facts given. Do not change any outcome or number. Reply with JSON only: {"<id>": "<sentence>", ...}';
-  try {
-    const r = await llm.ask(system, JSON.stringify(facts, null, 1));
-    const s = String(r.text).replace(/```(?:json)?/gi, ''); const j = JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1));
-    for (const d of decisions) if (typeof j[d.id] === 'string' && j[d.id].trim()) texts[d.id] = j[d.id].trim().slice(0, 400);
-    const u = r.usage || {};
-    return { texts, tokens: (u.input_tokens || 0) + (u.output_tokens || 0) };
-  } catch { return { texts, tokens: 0 }; }
-}

@@ -14,7 +14,7 @@ const prop = (agent, action_type, amount_inr, o = {}) => ({ agent, action_type, 
 test('smoke: one full decision cycle per strategy, same proposals in', async () => {
   for (const strategy of STRATEGIES) {
     const st = initState(2, 'baseline', p);
-    const c = await runCycle({ st, strategy, p, seed: 2 });
+    const c = runCycle({ st, strategy, p, seed: 2 });
     assert.ok(c.proposals.length > 0, strategy);
     assert.equal(c.decision.decisions.length, c.proposals.length, strategy);
     assert.equal(st.week, 1, 'the week advanced');
@@ -23,8 +23,8 @@ test('smoke: one full decision cycle per strategy, same proposals in', async () 
 });
 
 test('all strategies see identical proposals at week 0 of the same seed', async () => {
-  const a = await proposeAll({ state: initState(5, 'baseline', p), p, seed: 5 });
-  const b = await proposeAll({ state: initState(5, 'baseline', p), p, seed: 5 });
+  const a = proposeAll({ state: initState(5, 'baseline', p), p, seed: 5 });
+  const b = proposeAll({ state: initState(5, 'baseline', p), p, seed: 5 });
   assert.deepEqual(a.proposals, b.proposals);
 });
 
@@ -55,10 +55,10 @@ test('constraint-aware: the executed set is feasible where the baselines are not
 });
 
 test('an episode is deterministic and reports every headline metric', async () => {
-  const a = await runEpisode({ seed: 3, scenario: 'demand_surge', strategy: 'constraint_aware', p });
-  const b = await runEpisode({ seed: 3, scenario: 'demand_surge', strategy: 'constraint_aware', p });
+  const a = runEpisode({ seed: 3, scenario: 'demand_surge', strategy: 'constraint_aware', p });
+  const b = runEpisode({ seed: 3, scenario: 'demand_surge', strategy: 'constraint_aware', p });
   assert.deepEqual(a.row, b.row);
-  for (const k of ['violation_rate', 'min_cash_inr', 'stockout_units', 'ccc_days', 'ending_cash_inr', 'tokens_per_cycle']) assert.ok(Number.isFinite(a.row[k]), k);
+  for (const k of ['violation_rate', 'min_cash_inr', 'stockout_units', 'ccc_days', 'ending_cash_inr']) assert.ok(Number.isFinite(a.row[k]), k);
   assert.equal(a.weekly.length, p.sim.episode_weeks);
 });
 
@@ -67,7 +67,7 @@ test('the experiment shares seeds across strategies and exports csv and summarie
   assert.equal(r.rows.length, 2 * 2 * 3);
   const csv = toCsv(r.rows).trim().split('\n');
   assert.equal(csv.length, r.rows.length + 1);
-  assert.ok(csv[0].includes('violation_rate') && csv[0].includes('tokens_per_cycle'));
+  assert.ok(csv[0].includes('violation_rate') && csv[0].includes('profit_inr'));
   assert.equal(r.summary.length, 2 * 3);
   const w1 = r.weekly.filter(w => w.seed === 1 && w.scenario === 'baseline' && w.week === 0);
   assert.equal(w1.length, 3);
@@ -90,8 +90,8 @@ test('the stress margin makes the look-ahead more pessimistic', () => {
 
 test('paired comparison and summary statistics', () => {
   const rows = [1, 2, 3, 4].flatMap(seed => [
-    { seed, scenario: 's', strategy: 'constraint_aware', violation_rate: 0.1, min_cash_inr: 5, stockout_units: 1, ccc_days: 1, ending_cash_inr: 1, ending_net_worth_inr: 1, profit_inr: 1, tokens_per_cycle: 0 },
-    { seed, scenario: 's', strategy: 'independent', violation_rate: 0.5 + seed / 100, min_cash_inr: 1, stockout_units: 1, ccc_days: 1, ending_cash_inr: 1, ending_net_worth_inr: 1, profit_inr: 1, tokens_per_cycle: 0 }]);
+    { seed, scenario: 's', strategy: 'constraint_aware', violation_rate: 0.1, min_cash_inr: 5, stockout_units: 1, ccc_days: 1, ending_cash_inr: 1, ending_net_worth_inr: 1, profit_inr: 1 },
+    { seed, scenario: 's', strategy: 'independent', violation_rate: 0.5 + seed / 100, min_cash_inr: 1, stockout_units: 1, ccc_days: 1, ending_cash_inr: 1, ending_net_worth_inr: 1, profit_inr: 1 }]);
   const d = paired(rows, 's', 'constraint_aware', 'independent').violation_rate;
   assert.equal(d.pairs, 4); assert.equal(d.wins_a, 4); assert.ok(d.mean < 0 && d.ci95[1] < 0);
   assert.equal(summarize(rows).length, 2);

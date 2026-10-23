@@ -19,7 +19,6 @@ export function initExperiments() {
   formEl.innerHTML = `<div class="ex-form">
     <label>Seeds<input type="number" id="exSeeds" min="1" max="200" value="30"></label>
     <label>Weeks per episode<input type="number" id="exWeeks" min="4" max="52" value="12"></label>
-    <label>Agents<select id="exMode"><option value="mock">Rule-based (free, reproducible)</option><option value="llm">Claude (slow, uses your plan)</option></select></label>
     <label>Scenarios<div class="ex-checks">${SCEN.map(([k, l]) => `<span><input type="checkbox" class="exScn" value="${k}" checked>${l}</span>`).join('')}</div></label>
     <label>Strategies<div class="ex-checks">${STRAT.map(([k, l]) => `<span><input type="checkbox" class="exStr" value="${k}" checked>${l}</span>`).join('')}</div></label>
     <button class="ex-go" id="exGo">RUN EXPERIMENT</button></div><div id="exProg"></div>`;
@@ -28,7 +27,7 @@ export function initExperiments() {
 
   async function run() {
     if (running) return;
-    const body = { seeds: +formEl.querySelector('#exSeeds').value || 10, weeks: +formEl.querySelector('#exWeeks').value || 12, mode: formEl.querySelector('#exMode').value, scenarios: checked('exScn'), strategies: checked('exStr'), explain: false };
+    const body = { seeds: +formEl.querySelector('#exSeeds').value || 10, weeks: +formEl.querySelector('#exWeeks').value || 12, scenarios: checked('exScn'), strategies: checked('exStr') };
     if (!body.scenarios.length || !body.strategies.length) { prog.innerHTML = '<div class="ex-note">Pick at least one scenario and one strategy.</div>'; return; }
     running = true; go.disabled = true; prog.innerHTML = '<div class="ex-bar"><i style="width:0"></i></div>';
     try {
@@ -50,12 +49,12 @@ export function initExperiments() {
   go.addEventListener('click', run);
 
   function show(r) {
-    meta.textContent = `${r.meta.seeds} seeds · ${r.meta.episode_weeks} weeks · ${r.meta.mode === 'mock' ? 'rule-based agents' : 'Claude agents'}`;
+    meta.textContent = `${r.meta.seeds} seeds · ${r.meta.episode_weeks} weeks · rule-based agents`;
     const scs = r.meta.scenarios, strs = STRAT.map(s => s[0]).filter(k => r.meta.strategies.includes(k));
     const cell = (sc, st) => r.summary.find(s => s.scenario === sc && s.strategy === st);
-    const head = '<tr><th>Scenario</th><th>Strategy</th><th>Violation rate</th><th>Min cash (Rs)</th><th>Stock-outs</th><th>CCC (days)</th><th>Ending cash (Rs)</th><th>Profit (Rs)</th><th>Tokens / cycle</th></tr>';
+    const head = '<tr><th>Scenario</th><th>Strategy</th><th>Violation rate</th><th>Min cash (Rs)</th><th>Stock-outs</th><th>CCC (days)</th><th>Ending cash (Rs)</th><th>Profit (Rs)</th></tr>';
     const body = scs.map(sc => strs.map((st, i) => { const c = cell(sc, st); return `<tr class="${st === 'constraint_aware' ? 'arb' : ''}"><td>${i === 0 ? esc(SCEN.find(x => x[0] === sc)[1]) : ''}</td><td>${esc(STRAT.find(x => x[0] === st)[1])}</td>
-      <td>${fmtRate(c.violation_rate)}</td><td>${fmtInr(c.min_cash_inr)}</td><td>${fmtNum(c.stockout_units)}</td><td>${fmtNum(c.ccc_days, 1)}</td><td>${fmtInr(c.ending_cash_inr)}</td><td>${fmtInr(c.profit_inr)}</td><td>${fmtNum(c.tokens_per_cycle)}</td></tr>`; }).join('')).join('');
+      <td>${fmtRate(c.violation_rate)}</td><td>${fmtInr(c.min_cash_inr)}</td><td>${fmtNum(c.stockout_units)}</td><td>${fmtNum(c.ccc_days, 1)}</td><td>${fmtInr(c.ending_cash_inr)}</td><td>${fmtInr(c.profit_inr)}</td></tr>`; }).join('')).join('');
     const bars = scs.map(sc => `<div class="ex-bars">${strs.map(st => { const c = cell(sc, st).violation_rate; return `<span>${esc(SCEN.find(x => x[0] === sc)[1])} · ${esc(STRAT.find(x => x[0] === st)[1])}</span><span><div class="b" style="width:${Math.max(1, Math.round(c.mean * 100))}%;background:${COLOUR[st]}"></div></span><span>${c.mean.toFixed(2)}</span>`; }).join('')}</div>`).join('');
     let paired = '';
     if (strs.includes('constraint_aware')) {

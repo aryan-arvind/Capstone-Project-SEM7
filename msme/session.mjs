@@ -10,7 +10,6 @@ import { PARAMS } from './params.mjs';
 import { initState, step, schedule, metrics, makeEvents, SCENARIOS } from './sim.mjs';
 import { proposeAll } from './agents.mjs';
 import { decide, STRATEGIES, STRATEGY_LABEL } from './strategies.mjs';
-import { explainDecisions } from './arbiter.mjs';
 import { realizedViolations, check } from './constraints.mjs';
 import { arTotal, apTotal } from './books.mjs';
 import { DEPARTMENTS, DECISION_DEPTS } from './roster.mjs';
@@ -18,29 +17,27 @@ import { runExperiment, writeResults } from './run.mjs';
 
 const blankStats = () => Object.fromEntries(DEPARTMENTS.map(d => [d.key, { proposed: 0, accepted: 0, modified: 0, rejected: 0, violations: 0, cashImpact: 0 }]));
 
-export function createSession({ dataDir, p = PARAMS, llmFactory = null } = {}) {
+export function createSession({ dataDir, p = PARAMS } = {}) {
   const auditFile = dataDir ? path.join(dataDir, 'audit.jsonl') : null;
-  let s = null, llm = null;
+  let s = null;
   const jobs = new Map(); let jobSeq = 0;
 
-  function reset({ seed = 1, scenario = 'baseline', strategy = 'constraint_aware', mode = 'mock', explain = false } = {}) {
+  function reset({ seed = 1, scenario = 'baseline', strategy = 'constraint_aware' } = {}) {
     if (!SCENARIOS.includes(scenario)) throw new Error('unknown scenario: ' + scenario);
     if (!STRATEGIES.includes(strategy)) throw new Error('unknown strategy: ' + strategy);
-    s = { id: Date.now().toString(36), seed: +seed, scenario, strategy, mode, explain: !!explain, st: initState(+seed, scenario, p), phase: 'idle',
-      proposals: [], decision: null, tasks: [], stats: blankStats(), cycles: 0, tokens: 0, calls: 0, lastRealized: [], injected: [], log: [], failures: [] };
+    s = { id: Date.now().toString(36), seed: +seed, scenario, strategy, st: initState(+seed, scenario, p), phase: 'idle',
+      proposals: [], decision: null, tasks: [], stats: blankStats(), cycles: 0, lastRealized: [], injected: [], log: [], failures: [] };
     return snapshot();
   }
   const need = () => { if (!s) reset(); return s; };
 
   const status = d => d.outcome === 'approved' ? 'approved' : d.outcome === 'modified' ? 'modified' : d.blocked_by?.length ? 'blocked' : 'rejected';
 
-  async function getLLM() { if (!llm && llmFactory) llm = await llmFactory(); if (!llm) throw new Error('no model backend available'); return llm; }
-
   async function propose() {
     need();
     if (s.phase === 'proposed' || s.phase === 'arbitrated') throw new Error('this cycle is already under way: finish it first');
-    const r = await proposeAll({ state: s.st, p, mode: s.mode, llm: s.mode === 'llm' ? await getLLM() : null, seed: s.seed });
-    s.tokens += r.tokens; s.calls += r.calls; s.failures = r.failures;
+    const r = proposeAll({ state: s.st, p, seed: s.seed });
+    s.failures = r.failures;
     s.proposals = r.proposals;
     s.tasks = r.proposals.map((pr, i) => ({ ...pr, id: `w${s.st.week}-${pr.agent}-${r.proposals.slice(0, i).filter(x => x.agent === pr.agent).length + 1}`, dept: DECISION_DEPTS.find(d => d.agent.id === pr.agent)?.key, state: 'proposed', week: s.st.week }));
     for (const t of s.tasks) s.stats[t.dept].proposed++;
@@ -53,16 +50,11 @@ export function createSession({ dataDir, p = PARAMS, llmFactory = null } = {}) {
     if (s.phase !== 'proposed') throw new Error('propose first');
     s.tasks.forEach(t => { t.state = 'arbitrating'; });
     const dec = decide(s.strategy, s.proposals, s.st, p);
-    if (s.explain && s.mode === 'llm' && s.strategy === 'constraint_aware') {
-      const e = await explainDecisions(dec.decisions, await getLLM());
-      s.tokens += e.tokens; s.calls += e.tokens ? 1 : 0;
-      for (const d of dec.decisions) d.explanation = e.texts[d.id];
-    }
     // decide() numbers proposals by agent in the same order as propose(), so ids line up
     const byId = new Map(dec.decisions.map(d => [d.id, d]));
     for (const t of s.tasks) {
       const d = byId.get(t.id); if (!d) continue;
-      t.state = status(d); t.decision = d; t.amount_approved_inr = d.amount_approved_inr; t.reason = d.explanation || d.reason; t.outcome = d.outcome; t.blocked_by = d.blocked_by;
+      t.state = status(d); t.decision = d; t.amount_approved_inr = d.amount_approved_inr; t.reason = d.reason; t.outcome = d.outcome; t.blocked_by = d.blocked_by;
     }
     s.decision = dec; s.phase = 'arbitrated';
     return snapshot();
@@ -106,7 +98,7 @@ export function createSession({ dataDir, p = PARAMS, llmFactory = null } = {}) {
     if (!auditFile) return;
     try {
       fs.mkdirSync(path.dirname(auditFile), { recursive: true });
-      const meta = { ts: new Date().toISOString(), session: s.id, seed: s.seed, scenario: s.scenario, strategy: s.strategy, mode: s.mode, week };
+      const meta = { ts: new Date().toISOString(), session: s.id, seed: s.seed, scenario: s.scenario, strategy: s.strategy, week };
       const lines = dec.decisions.map(d => JSON.stringify({ ...meta, ...d, set_violations_before: dec.violations_before?.map(v => v.constraint) || [], set_violations_after: (dec.violations_predicted || dec.violations_after || []).map(v => v.constraint) }));
       fs.appendFileSync(auditFile, lines.join('\n') + '\n');
     } catch { /* the audit file is best-effort on disk; the in-memory log below still holds it */ }
@@ -122,14 +114,14 @@ export function createSession({ dataDir, p = PARAMS, llmFactory = null } = {}) {
     need();
     const m = metrics(s.st, p), st = s.st;
     return {
-      session: s.id, week: st.week, seed: s.seed, scenario: s.scenario, strategy: s.strategy, strategyLabel: STRATEGY_LABEL[s.strategy], mode: s.mode, explain: s.explain, phase: s.phase, cycles: s.cycles,
+      session: s.id, week: st.week, seed: s.seed, scenario: s.scenario, strategy: s.strategy, strategyLabel: STRATEGY_LABEL[s.strategy], phase: s.phase, cycles: s.cycles,
       metrics: { cash: m.cash, runway: m.runway, dso: m.dso, dpo: m.dpo, ccc: m.ccc, dio: m.dio },
       books: { ar: arTotal(st), ap: apTotal(st), inventory_units: st.inv.units, od_used: st.od.used, od_limit: st.od.limit, gst_payable: st.gstPayable },
       constraints: p.constraints, realized_violations: s.lastRealized, injected: s.injected,
       depts: s.stats, tasks: s.tasks.map(t => ({ id: t.id, dept: t.dept, agent: t.agent, action_type: t.action_type, label: t.decision?.label, amount_inr: t.amount_inr, amount_approved_inr: t.amount_approved_inr ?? null,
         timing_week: t.timing_week, cash_impact_inr: t.cash_impact_inr, confidence: t.confidence, rationale: t.rationale, state: t.state, outcome: t.outcome || null, blocked_by: t.blocked_by || [], reason: t.reason || null })),
       conflicts: s.decision?.conflicts || [], predicted_violations: (s.decision?.violations_predicted || []).map(v => v.constraint),
-      tokens: s.tokens, llm_calls: s.calls, schema_failures: s.failures,
+      schema_failures: s.failures,
       log: s.log.slice(-20),
     };
   }
@@ -141,9 +133,7 @@ export function createSession({ dataDir, p = PARAMS, llmFactory = null } = {}) {
     jobs.set(id, job);
     (async () => {
       try {
-        const mode = opts.mode === 'llm' ? 'llm' : 'mock';
-        const llmI = mode === 'llm' ? await getLLM() : null;
-        const result = await runExperiment({ seeds: Math.min(+opts.seeds || 10, 200), scenarios: opts.scenarios?.length ? opts.scenarios : SCENARIOS, strategies: opts.strategies?.length ? opts.strategies : STRATEGIES, weeks: opts.weeks ? +opts.weeks : undefined, mode, llm: llmI, explain: !!opts.explain,
+        const result = await runExperiment({ seeds: Math.min(+opts.seeds || 10, 200), scenarios: opts.scenarios?.length ? opts.scenarios : SCENARIOS, strategies: opts.strategies?.length ? opts.strategies : STRATEGIES, weeks: opts.weeks ? +opts.weeks : undefined,
           onProgress: (d, t) => { job.done = d; job.total = t; } });
         if (dataDir) writeResults(result, path.join(path.dirname(dataDir), 'results'));
         job.summary = { meta: { ...result.meta, params: undefined }, summary: result.summary, comparisons: result.comparisons };

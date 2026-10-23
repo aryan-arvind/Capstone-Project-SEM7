@@ -2,7 +2,6 @@
 // Far: clean pods + agent counts (Image 1 read). Near: diorama with 3D people + holo screens (Image 2 read).
 import * as THREE from 'three';
 import { TOKENS, DEPTS, DEPT_KEYS, DECISION_KEYS, CENTRE_KEY, AGENTS, LAYOUT, WORKLINES, APPROVAL_ASKS, APPROVAL_BY_AGENT } from './data.js';
-import { hasScreens, makeScreen } from './screens.js'; // live screens (14 Sep): no-op without window.SCREENS
 import { V1, rnd, ri, money } from './v1data.js';
 import { ledger, deptRows } from './ledger.js';
 import {
@@ -215,7 +214,7 @@ for (const a of AGENTS) {
   const station = new THREE.Group();
   station.position.copy(base);
   station.rotation.y = ANG;
-  const live = hasScreens() ? makeScreen(a.id, a.name) : null;
+  const live = null;
   const { group: desk, screenSet } = makeDesk(dept.chip, live);
   station.add(desk);
   screenSets.push({ screenSet, dept: a.dept, live });
@@ -1053,13 +1052,8 @@ function tickSim(now, dt) {
   tickEmotes(now, dt);
   tickSweep(now);
   brain.tick(now);
-  // live screens: every monitor plays its own session; slower cadence when the camera is far away
-  if (hasScreens()) {
-    const slow = view.zoom < 1.4;
-    for (const ss of screenSets) if (ss.live) ss.live.tick(now, slow);
-  }
   // rotate desk screen content — a couple of screens refresh every beat so the room reads busy
-  else if (Math.floor(now / 1800) !== Math.floor((now - dt * 1000) / 1800)) {
+  if (Math.floor(now / 1800) !== Math.floor((now - dt * 1000) / 1800)) {
     const n = 1 + (Math.random() < 0.5 ? 1 : 0);
     for (let i = 0; i < n; i++) {
       const ss = screenSets[Math.floor(Math.random() * screenSets.length)];
