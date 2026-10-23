@@ -8,15 +8,15 @@
     "start": "node serve.mjs",
     "build": "node build.mjs",
     "check": "node check.mjs",
-    "check:live": "CHECK_LIVE=1 node check.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "experiment": "node msme/run.mjs",
+    "plots": "python scripts/plots.py",
+    "sensitivity": "node scripts/sensitivity.mjs"
   },
   "engines": {
     "node": ">=20"
   },
-  "dependencies": {
-    "d3-force": "^3.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "esbuild": "^0.28.1",
     "three": "^0.185.1",

@@ -3,10 +3,8 @@
 import * as THREE from 'three';
 import { TOKENS, DEPTS, DEPT_KEYS, DECISION_KEYS, CENTRE_KEY, AGENTS, LAYOUT, WORKLINES, APPROVAL_ASKS, APPROVAL_BY_AGENT } from './data.js';
 import { hasScreens, makeScreen } from './screens.js'; // live screens (14 Sep): no-op without window.SCREENS
-import { V1, FILE_GEN, STATS, KPIS, P, rnd, ri, person, money } from './v1data.js';
+import { V1, rnd, ri, money } from './v1data.js';
 import { ledger, deptRows } from './ledger.js';
-const PROFILE = null; // (the per-industry demo profile belongs to the old generic office and is retired)
-const profileRows = () => null, profileTickKpi = () => {}, profileMockup = () => null, applyTopbar = () => {};
 import {
   PLINTH_H, mat, rbox, makePlinth, makeFloorTitle, makeDesk, makeChair,
   makePerson, posePerson, poseWork, makePlant, makeServerRack, makeMeetingTable, makeWalkway, makeWarnSprite,
@@ -253,26 +251,6 @@ for (const a of AGENTS) {
   };
 }
 
-/* CONNECTORS — per-dept dock of MCP logos with back-and-forth traffic (AJ's spec, 2 Aug rev 2)
-   V3.1: served, the list is the user's REAL MCP servers (GET /api/mcp) — the strip waits for it.
-   Opened as a file the demo list plays at once. `mcp` is a thin proxy so the rest of the office
-   never cares which it got. */
-let mcpImpl = null, mcpDark = false;
-const mcp = {
-  sprites: [],
-  tick: (...a) => mcpImpl && mcpImpl.tick(...a),
-  onAgentEvent: (...a) => mcpImpl && mcpImpl.onAgentEvent(...a),
-  onToolsUsed: (...a) => mcpImpl && mcpImpl.onToolsUsed(...a),
-  showTip: (...a) => mcpImpl && mcpImpl.showTip(...a),
-  startReveal: (...a) => mcpImpl && mcpImpl.startReveal(...a),
-  setDark: on => { mcpDark = on; if (mcpImpl) mcpImpl.setDark(on); },
-  setUsage: u => { mcpUsage = u; if (mcpImpl) mcpImpl.setUsage(u); }, // V3.6: the plan's gauge; kept until the strip exists
-  isLive: () => !!(mcpImpl && mcpImpl.live),
-};
-let mcpUsage = null;
-// (the MCP connector docks belong to the generic office; the MSME office wires no tool strips) if (mcpDark) mcpImpl.setDark(true); if (mcpUsage) mcpImpl.setUsage(mcpUsage); });
-applyTopbar(); // INDUSTRY PROFILE (12 Sep 2026): the demo company's name beside the brand
-
 // plants on outer corners
 for (const k of DECISION_KEYS.filter(x => x !== 'treasury')) {
   const L = LAYOUT[k];
@@ -302,7 +280,6 @@ function applySceneDim(deptKey) {
   scene.traverse(o => {
     if (!(o.isMesh || o.isLine || o.isSprite) || !o.material || o.material.isShadowMaterial || !o.userData.dept) return;
     if (o.userData.dept === deptKey) return;
-    if (deptKey === 'brain' && o.userData.dept === 'brainCore') return; // brain focus keeps its nebula lit
     dimSwapped.push({ mesh: o, orig: o.material });
     o.material = dimTwin(o.material);
   });
@@ -422,7 +399,7 @@ addEventListener('wheel', (e) => {
   const after = worldAt(nx, ny);
   if (before && after) view.target.add(before.sub(after));
   if (view.zoom < 1.6 && focused) {
-    if (focused === 'brain') focused = null; else exitFocus(false);
+    exitFocus(false);
   }
   syncOverviewBtn();
 }, { passive: false });
@@ -450,11 +427,6 @@ addEventListener('pointerup', (e) => {
   if (e.target !== canvas) return; // HTML chrome handles its own clicks
   const nx = (e.clientX / innerWidth) * 2 - 1, ny = -(e.clientY / innerHeight) * 2 + 1;
   ray.setFromCamera(new THREE.Vector2(nx, ny), camera);
-  const mHits = ray.intersectObjects(mcp.sprites, false);
-  if (mHits.length) { // MCP logo tile → pulse + connection tooltip
-    mcp.showTip(mHits[0].object, e.clientX, e.clientY, performance.now());
-    return;
-  }
   const pHits = ray.intersectObjects(personTargets, false);
   if (pHits.length) {
     // clicking an agent opens its rail — a stuck agent opens straight to Chat (v1 rule)
@@ -464,7 +436,6 @@ addEventListener('pointerup', (e) => {
   const hits = ray.intersectObjects(clickTargets, false);
   if (hits.length) {
     const dk = hits[0].object.userData.dept;
-    if (dk === 'brain') { brain.open(); return; } // V3.6: the Brain opens as the graph
     if (dk !== focused) enterFocus(dk);
   }
 });
@@ -483,14 +454,13 @@ addEventListener('keydown', (e) => {
     if (focused !== dept) enterFocus(dept);
   }
   else if (e.key === 'c' || e.key === 'C') { // in a department: open its (lead) agent's chat
-    if (focused && focused !== 'brain') {
+    if (focused) {
       const a = AGENTS.find(x => x.dept === focused && x.lead) || AGENTS.find(x => x.dept === focused);
       if (a) openAgentRail(a.id, 'chat');
     }
   }
   else if (e.key === 'v' || e.key === 'V') setCam(!document.body.classList.contains('cam'));
   else if (e.key === 'd' || e.key === 'D') setDark(!darkOn);
-  else if (e.key === 'w' || e.key === 'W') requestApproval('apay'); // demo cue: Accounts Payable asks for approval
 });
 
 // camera mode: mid-tone backdrop for filming the screen (#cam=1 / V toggles)
@@ -510,14 +480,13 @@ function setDark(on) {
     const m = o.material; if (!m.userData.base) m.userData.base = m.color.clone();
     if (o.userData.part === 'plinth') m.color.set(darkOn ? DARK.plinth : m.userData.base);
     else if (o.userData.part === 'walkway') m.color.set(darkOn ? DARK.walkway : m.userData.base);
-    else if (o.userData.part === 'floor') m.color.copy(darkOn ? mix(o.userData.chip, '#1b1c1a', o.userData.dept === 'brain' ? 0.07 : 0.22) : m.userData.base); // the Brain's pale sage needs a lighter touch
+    else if (o.userData.part === 'floor') m.color.copy(darkOn ? mix(o.userData.chip, '#1b1c1a', o.userData.dept === CENTRE_KEY ? 0.07 : 0.22) : m.userData.base); // the Brain's pale sage needs a lighter touch
   });
   hemi.color.set(darkOn ? 0x8e95a3 : 0xfdfff8); hemi.groundColor.set(darkOn ? 0x14151a : 0xd8d4c8); hemi.intensity = darkOn ? 0.75 : 0.85;
   key.color.set(darkOn ? 0xe4e9f2 : 0xfff1dd); key.intensity = darkOn ? 1.5 : 2.2;
   ground.material.opacity = darkOn ? 0.35 : 0.13;
-  if (focused && focused !== 'brain') applySceneDim(focused);
+  if (focused) applySceneDim(focused);
   if (brain) brain.setTheme(darkOn);
-  mcp.setDark(darkOn);
 }
 
 // double-click empty space → straight back to overview
@@ -531,7 +500,7 @@ canvas.addEventListener('dblclick', (e) => {
 function zoomStep(f) {
   flyTo([view.target.x, 0, view.target.z], clamp(view.zoom * f, 0.72, 5.2), 350);
   if (view.zoom * f < 1.6 && focused) {
-    if (focused === 'brain') focused = null; else exitFocus(false);
+    exitFocus(false);
   }
   syncOverviewBtn();
 }
@@ -541,7 +510,7 @@ document.getElementById('zHome').addEventListener('click', zoomOut);
 
 function zoomToDept(k) { enterFocus(k); }
 function zoomOut() {
-  if (focused && focused !== 'brain') { exitFocus(true); return; }
+  if (focused) { exitFocus(true); return; }
   focused = null;
   flyTo(overviewPos(), OVERVIEW.zoom, 550);
   syncOverviewBtn();
@@ -595,7 +564,7 @@ function renderChat(id) {
         ${m.mock ? `<div class="a-mock">${m.mock}</div>` : ''}
         ${m.pending
           ? '<div class="a-btns"><button class="a-yes">APPROVE</button><button class="a-no">REJECT</button></div>'
-          : `<div class="a-done">${m.approved ? '✓ Approved' : '✗ Rejected'} by AJ</div>`}
+          : `<div class="a-done">${m.approved ? '✓ Approved' : '✗ Rejected'} by the owner</div>`}
       </div>`;
     return '';
   }).join('');
@@ -635,19 +604,12 @@ function focusTarget(k, atPos) {
   return { pos: [base[0] + SCREEN_RIGHT.x * dir, 0, base[2] + SCREEN_RIGHT.z * dir], zoom };
 }
 function enterFocus(k, pendingAgentId) {
-  if (k === 'brain') { // the Brain keeps its plain fly-in (AJ's call)
-    focused = 'brain';
-    if (tasks) tasks.onFocusChange('brain');
-    flyTo([LAYOUT.brain.pos[0], 0, LAYOUT.brain.pos[1] + 1.5], 3.1, 700);
-    syncOverviewBtn();
-    return;
-  }
   if (focused === k && !pendingAgentId) return;
   if (focused && focused !== k) {
     rail.classList.remove('open', 'agentOpen'); modalOpen = null;
     // dept → dept without passing through overview: the old billboard was hidden when it flew into the
     // rail (flyBillboardIntoRail) and only exitFocus restores it — bring it back or it stays gone (AJ, 15 Sep)
-    if (focused !== 'brain' && deptRT[focused] && deptRT[focused].badge) deptRT[focused].badge.style.display = '';
+    if (deptRT[focused] && deptRT[focused].badge) deptRT[focused].badge.style.display = '';
   }
   focused = k;
   if (tasks) tasks.onFocusChange(k);
@@ -687,7 +649,7 @@ function exitFocus(flyOut = true) {
   document.body.classList.remove('railLeft');
   setTimeout(() => { if (!focused) rail.style.display = 'none'; }, 650);
   document.getElementById('overviewBtn').classList.remove('right');
-  if (k !== 'brain' && deptRT[k] && deptRT[k].badge) deptRT[k].badge.style.display = '';
+  if (deptRT[k] && deptRT[k].badge) deptRT[k].badge.style.display = '';
   if (flyOut) flyTo(overviewPos(), OVERVIEW.zoom, 700);
   syncOverviewBtn();
 }
@@ -761,12 +723,12 @@ function openAgentRail(id, tab = 'chat', fly = true) {
 }
 // V3: the board opening/closing re-centres the pod without leaving focus
 function reframe() {
-  if (!focused || focused === 'brain' || modalOpen) return;
+  if (!focused || modalOpen) return;
   const t = focusTarget(focused);
   flyTo(t.pos, t.zoom, 600);
 }
 function railBack() { // V3.4: "back" = back to the pod view, chat stays on the lead
-  if (!focused || focused === 'brain') return;
+  if (!focused) return;
   const lead = AGENTS.find(x => x.dept === focused && x.lead) || AGENTS.find(x => x.dept === focused);
   openAgentRail(lead.id, 'chat', false);
   const t = focusTarget(focused);
@@ -799,30 +761,8 @@ function sendChat(text) {
   document.getElementById('mIn').value = '';
   const low = text.toLowerCase();
   setTimeout(() => {
-    if (tasks && tasks.pendingReject(id)) { tasks.rejectLive(id, text); return; } // V3.5: the line after REJECT is the note the agent reworks with
-    if (r.state === 'stuck' && /\b(approve|reject)\b/.test(low)) {
-      resolveApproval(id, /approve/.test(low));
-      return;
-    }
-    const rv = tasks && tasks.isLive() && text.match(/^\s*revise\s*[:\-–]\s*(.+)$/i); // LIVE: "revise: …" re-runs the last deliverable
-    if (rv && tasks.revise(id, rv[1].trim())) { chatPush(id, { who: 'agent', text: 'On it — revising now. It will land here when it is ready.' }); return; }
-    const tr = tasks && tasks.handleChat(id, text); // "add task: …" / "what's on the board"
+    const tr = tasks && tasks.handleChat(id, text); // answered from the real proposals
     if (tr) { chatPush(id, { who: 'agent', text: tr }); return; }
-    if (tasks && tasks.isLive()) { // LIVE: a real conversation with the agent, grounded in the brain
-      chatPush(id, { who: 'work', i: '…', text: `${r.a.name} is thinking` });
-      fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ agent: id, text, history: chatHist[id].filter(m => m.who === 'user' || m.who === 'agent').slice(-8) }) })
-        .then(async res => { if (!res.ok) throw new Error((await res.json()).error || res.statusText); return res.json(); })
-        .then(j => {
-          const h = chatHist[id]; const k = h.findIndex(m => m.who === 'work' && m.text === `${r.a.name} is thinking`); if (k >= 0) h.splice(k, 1);
-          chatPush(id, { who: 'agent', text: j.reply });
-          if (j.routines && tasks.refresh) tasks.refresh(); // a routine was set, paused, run or deleted in chat
-          if (j.read) for (const n of j.read.slice(0, 2)) brain.readNote(id, n);
-          if (j.tools && j.tools.length) mcp.onToolsUsed(id, j.tools);
-        })
-        .catch(e => chatPush(id, { who: 'agent', text: `I couldn't reach Claude (${e.message}).` }));
-      return;
-    }
     const hit = (r.v1.chat || []).find(c => c.k.some(k => low.includes(k)));
     const reply = hit ? rnd(hit.r) : rnd(r.v1.fallback || ['On it.']);
     chatPush(id, { who: 'agent', text: reply });
@@ -840,7 +780,7 @@ function ago(ts) {
   return m < 1 ? 'now' : m < 60 ? m + 'm ago' : Math.round(m / 60) + 'h ago';
 }
 
-/* ---------- approval mockups — show AJ exactly what he's approving ---------- */
+/* ---------- approval mockups — show the owner exactly what is being approved ---------- */
 function mockupFor(id) {
   // what the owner is being asked to approve: the real proposal, with the constraint it hit
   const r = R[id], pr = r.proposal;
@@ -903,7 +843,7 @@ function syncApprovals() {
     deptRT[k].apprN.textContent = n;
   }
   // mirror into the docked rail header + row status tags
-  if (focused && focused !== 'brain') {
+  if (focused) {
     const n = stuckIn(focused).length;
     const rh = document.getElementById('railHeader');
     const ap = rh.querySelector('.b-appr');
@@ -1144,7 +1084,7 @@ function tickLOD() {
   // billboards persist at every zoom (v1 rule) — slightly larger when far, compact when near
   const badgeScale = 1.02 - 0.3 * smooth(1.2, 2.6, z);
   for (const [k, d] of Object.entries(deptRT)) {
-    if (focused === k && k !== 'brain') continue; // this billboard is docked in the rail
+    if (focused === k) continue; // this billboard is docked in the rail
     let [sx, sy] = toScreen(d.badgeAnchor);
     // keep billboards fully on screen (camera-readability rule)
     const bh = d.badge.offsetHeight * badgeScale, bw = d.badge.offsetWidth * badgeScale;
@@ -1171,7 +1111,7 @@ function tickLOD() {
     const [sx, sy] = toScreen(v3.set(p.x, p.y + 5.9 * (r.a.lead ? 1.12 : 1), p.z).clone());
     r.pill.style.display = 'block';
     r.pill.style.transform = `translate(${sx}px,${sy}px) translate(-50%,-100%) scale(${pillScale})`;
-    const dimmed = focused && focused !== 'brain' && r.a.dept !== focused;
+    const dimmed = focused && r.a.dept !== focused;
     r.pill.style.opacity = dimmed ? 1 - 0.85 * focusDim : 1;
   }
 }
@@ -1238,7 +1178,6 @@ resize();
 {
   const h = new URLSearchParams(location.hash.slice(1));
   if (h.get('zoom')) view.zoom = parseFloat(h.get('zoom')) || 1;
-  if (h.get('appr')) requestApproval(h.get('appr') === '1' ? 'apay' : h.get('appr'));
   if (h.get('view') && LAYOUT[h.get('view')]) enterFocus(h.get('view'));
   if (h.get('cam')) setCam(h.get('cam') === '1');
   if (h.get('dark') === '1' || document.body.classList.contains('dark')) setDark(true);
@@ -1246,7 +1185,7 @@ resize();
   addEventListener('hashchange', () => { const d = new URLSearchParams(location.hash.slice(1)).get('dark'); if (d === '1') setDark(true); else if (d === '0') setDark(false); });
   if (h.get('board')) { // #board=1 → company board · #board=treasury → that dept's board
     const b = h.get('board');
-    if (LAYOUT[b] && b !== 'brain') tasks.openFor(b); else tasks.open();
+    if (LAYOUT[b]) tasks.openFor(b);
   }
   syncOverviewBtn();
 }
@@ -1263,7 +1202,6 @@ function loop(now) {
   tickSim(now, dt);
   tickLOD();
   tasks.tick(now);
-  mcp.tick(now, dt, view, camera, focused, focusDim);
   syncOverviewBtn();
   renderer.render(scene, camera);
   requestAnimationFrame(loop);

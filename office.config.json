@@ -1,6 +1,5 @@
 {
   "name": "Meridian Auto Components (MSME)",
-  "brain": "./msme/notes",
   "port": 4520,
   "model": "sonnet"
 }
