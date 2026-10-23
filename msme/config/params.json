@@ -4,7 +4,7 @@
     "episode_weeks": 12,
     "horizon_weeks": 4,
     "opening": {
-      "cash": 1200000,
+      "cash": 1600000,
       "inventory_units": 2600,
       "od_limit": 2500000,
       "od_used": 0

@@ -61,7 +61,7 @@ export function snapshot(st, p) {
   return {
     week: st.week, cash: st.cash, odUsed: st.od.used, odLimit: st.od.limit, ar, ap,
     invUnits: st.inv.units, committedUnits: st.inv.units + incomingUnits(st), invValue,
-    currentRatio: currentLiabilities > 0 ? currentAssets / currentLiabilities : 99,
+    currentAssets, currentLiabilities, currentRatio: currentLiabilities > 0 ? currentAssets / currentLiabilities : 99,
     msmeOverdue, gstPayable: st.gstPayable,
   };
 }
