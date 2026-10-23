@@ -624,7 +624,7 @@ function enterFocus(k, pendingAgentId) {
   buildDeptRail(k);
   rail.className = RAIL_SIDE[k];
   rail.style.display = 'block';
-  document.body.classList.toggle('railLeft', RAIL_SIDE[k] === 'left'); // the Sahni.ai mark steps right of a docked-left rail
+  document.body.classList.toggle('railLeft', RAIL_SIDE[k] === 'left');
   // V3.4: the rail IS the chat — it opens on the department lead (or first agent) at once
   // (after the className reset above, which would otherwise drop the agentOpen state)
   const first = pendingAgentId || (AGENTS.find(x => x.dept === k && x.lead) || AGENTS.find(x => x.dept === k)).id;

@@ -214,6 +214,5 @@ data/, results/  generated at run time (git-ignored): audit.jsonl, results.csv /
 ## Attribution and licence
 
 The 3D office front end is derived from **Agents Office by Sahni.ai**, used under its licence (PolyForm Noncommercial
-1.0.0 plus Sahni.ai's additional terms, in [LICENSE](LICENSE)). The Sahni.ai mark and licence line stay on every
-page. This repository is non-commercial coursework. The roster, simulator, proposal schema, constraint layer, Arbiter,
+1.0.0 plus Sahni.ai's additional terms, in [LICENSE](LICENSE)). This repository is non-commercial coursework. The roster, simulator, proposal schema, constraint layer, Arbiter,
 baselines, experiment runner, audit views and this documentation are new work for the capstone.

@@ -4,7 +4,7 @@ A Semester 7 capstone: *Constraint-Aware Arbitration of Multi-Agent Recommendati
 Working-Capital Decisions*. Six department agents propose conflicting uses of limited cash; a
 deterministic Arbiter resolves them under hard financial constraints; experiments audit it against
 two baselines. The 3D office is the front end. It is built on Agents Office by Sahni.ai (see LICENSE,
-which stays in the repo together with the notice at the bottom of the page).
+which stays in the repo).
 
 ## Where things live
 
