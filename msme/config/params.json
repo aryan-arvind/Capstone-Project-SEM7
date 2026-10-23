@@ -68,7 +68,7 @@
       0.5,
       0.25
     ],
-    "max_exact_proposals": 16,
+    "max_exact_proposals": 12,
     "liquidity_target": 500000
   },
   "baselines": {
