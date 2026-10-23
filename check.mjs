@@ -69,7 +69,7 @@ else {
 }
 
 /* ---------- 4. unit tests ---------- */
-if (fs.existsSync(path.join(ROOT, 'test'))) await step('unit tests (node --test)', async () => (await sh('node', ['--test', 'test/'])).split('\n').filter(l => /^# (pass|fail)/.test(l)).join(' · '));
+if (fs.existsSync(path.join(ROOT, 'test'))) await step('unit tests (node --test)', async () => (await sh('node', ['--test', 'test/*.test.mjs'])).split('\n').filter(l => /^# (pass|fail)/.test(l)).join(' · '));
 
 const failed = results.filter(r => !r).length;
 console.log(failed ? `\n${failed} failed` : `\nall ${results.length} checks passed`);

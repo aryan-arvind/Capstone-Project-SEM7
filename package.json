@@ -9,7 +9,7 @@
     "build": "node build.mjs",
     "check": "node check.mjs",
     "check:live": "CHECK_LIVE=1 node check.mjs",
-    "test": "node --test test/"
+    "test": "node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=20"

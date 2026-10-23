@@ -1,0 +1,102 @@
+{
+  "_about": "Every number the simulator, the constraint layer and the arbiter use. All money is integer INR. These are modelling assumptions for an illustrative auto-components MSME (about Rs 6 crore turnover a year), not measured data; the README lists them as assumptions.",
+  "sim": {
+    "episode_weeks": 12,
+    "horizon_weeks": 4,
+    "opening": {
+      "cash": 1200000,
+      "inventory_units": 2600,
+      "od_limit": 2500000,
+      "od_used": 0
+    },
+    "price": 1200,
+    "unit_cost": 700,
+    "base_demand_units": 1150,
+    "demand_noise_sd": 0.12,
+    "seasonal_amplitude": 0.08,
+    "payroll_per_week": 320000,
+    "fixed_cost_per_week": 180000,
+    "customer_credit_weeks": 4,
+    "customer_extra_lag_weeks": [
+      0,
+      0,
+      1,
+      1,
+      2
+    ],
+    "supplier_terms_weeks": 6,
+    "msme_supplier_share": 0.6,
+    "reorder_lead_weeks": 2,
+    "inventory_capacity_units": 6000,
+    "od_rate_annual": 0.14,
+    "unauthorised_od_rate_annual": 0.24,
+    "msme_late_interest_multiple": 3,
+    "gst_rate_of_sales": 0.04,
+    "gst_every_weeks": 4,
+    "maintenance_interval_weeks": 8,
+    "breakdown_cost": 400000,
+    "breakdown_prob_when_overdue": 0.25
+  },
+  "effects": {
+    "extend_credit_weeks": 2,
+    "extend_credit_uplift": 0.03,
+    "stock_discount": 0.15,
+    "prepay_discount": 0.03,
+    "overtime_cost_share_of_unit_cost": 0.6,
+    "dunning_collect_rate": 0.6,
+    "dunning_cost": 0.01,
+    "early_payment_discount": 0.02,
+    "early_payment_take_up": 0.7,
+    "factoring_fee": 0.04,
+    "delay_payables_weeks": 2,
+    "pay_early_discount": 0.015
+  },
+  "constraints": {
+    "min_cash_buffer": 300000,
+    "covenant_min_current_ratio": 1.2,
+    "payment_term_days": 45,
+    "inventory_capacity_units": 6000
+  },
+  "objective": {
+    "_about": "J(S) = w_profit * sum(confidence_i * profit_i) + w_risk * sum(risk_reduction_i) + w_liquidity * min(min_headroom(S), liquidity_target), where min_headroom is the lowest projected cash above the buffer over the horizon. The Arbiter maximises J over feasible subsets of the proposals.",
+    "w_profit": 1,
+    "w_liquidity": 0.25,
+    "w_risk": 1,
+    "amount_fractions": [
+      1,
+      0.75,
+      0.5,
+      0.25
+    ],
+    "max_exact_proposals": 16,
+    "liquidity_target": 500000
+  },
+  "baselines": {
+    "_about": "Priority of each department in the voting baseline (b); it has no constraint awareness.",
+    "priority": {
+      "compliance": 0.95,
+      "treasury": 0.9,
+      "sales": 0.8,
+      "collections": 0.75,
+      "procurement": 0.7,
+      "production": 0.6
+    }
+  },
+  "scenarios": {
+    "event_week": 3,
+    "delayed_receivable": {
+      "delay_weeks": 6
+    },
+    "supplier_price_spike": {
+      "cost_multiplier": 1.25,
+      "duration_weeks": 6
+    },
+    "demand_surge": {
+      "demand_multiplier": 1.5,
+      "duration_weeks": 4
+    },
+    "credit_limit_tightened": {
+      "limit_multiplier": 0.5
+    }
+  }
+}
