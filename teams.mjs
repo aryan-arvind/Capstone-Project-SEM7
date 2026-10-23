@@ -43,7 +43,7 @@ export function planPrompt({ business, deptName, lead, seats, text, title, max, 
     `\n\nThe owner's request: "${text}"${title && title !== text ? `\n(Task title: ${title})` : ''}\n\n` +
     (notes ? `Company notes you may use to split it well:\n${notes}\n\n` : '') +
     `The owner asked for a TEAM, so split the request into 2 to ${max} INDEPENDENT pieces that can be done at the same time, each owned by a different desk whose job or skills fit it — never one piece. ` +
-    'When the request is one job in parts (three angles, three emails, three sections), give each part to a different desk with the whole brief so the parts stay distinct; when it is one indivisible thing, give the making to one desk and a different lens to another (a check against the brand voice, the customer\'s view, the numbers, the risks). ' +
+    'When the request is one job in parts (three angles, three checks, three sections), give each part to a different desk with the whole brief so the parts stay distinct; when it is one indivisible thing, give the making to one desk and a different lens to another (a check against the brand voice, the customer\'s view, the numbers, the risks). ' +
     'You may take one piece yourself. Do not invent work the owner did not ask for. Each piece\'s text is a complete instruction the teammate can act on alone, with what the owner said that matters to it.\n' +
     'Return: {"pieces":[{"agent":"<id>","title":"<imperative title, max 70 characters>","text":"<the instruction>"}],"why":"<one short sentence on how you split it>"}';
   return { system, user };

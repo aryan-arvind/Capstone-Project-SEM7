@@ -1,6 +1,6 @@
 {
-  "name": "Northgate Studio",
-  "brain": "./brain",
+  "name": "Meridian Auto Components (MSME)",
+  "brain": "./msme/notes",
   "port": 4520,
   "model": "sonnet",
   "mcp": { "allow": [], "deny": [], "departments": {} },

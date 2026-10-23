@@ -23,29 +23,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const DEPT_KEYS = ['emails', 'sales', 'marketing', 'ops', 'fin', 'delivery'];
+import { DEPT_KEYS } from './src/data.js';
+export { DEPT_KEYS };
 
-// known brands → logo key in src/mcplogos.js. Anything else gets a generated tile.
-const ALIASES = {
-  gmail: ['gmail', 'googlegmail'], notion: ['notion'], canva: ['canva'], meta: ['metaads', 'meta', 'facebookads', 'facebook'],
-  slack: ['slack'], fullenrich: ['fullenrich'], apollo: ['apollo', 'apolloio'], xero: ['xero'], stripe: ['stripe'],
-  pandadoc: ['pandadoc'], clarity: ['clarity', 'microsoftclarity'], beehiiv: ['beehiiv'], loops: ['loops'],
-  hyperframes: ['hyperframes'], imessage: ['imessage', 'messages'], claude: ['claude'], chatgpt: ['chatgpt', 'openai'],
-  googlecalendar: ['googlecalendar', 'gcal', 'calendar'], googledrive: ['googledrive', 'gdrive', 'drive'], webflow: ['webflow'], playwright: ['playwright'],
-  higgsfield: ['higgsfield', 'higgfield'], territool: ['territool'],
-  chrome: ['claudeinchrome', 'chrome', 'claudechrome', 'browser'],
-};
-// which pods a known brand feeds (mirrors the demo's MCP_BY_DEPT)
-const DEPTS_BY_KEY = {
-  meta: ['marketing'], canva: ['marketing', 'delivery'], loops: ['marketing'], beehiiv: ['marketing'], hyperframes: ['marketing'],
-  clarity: ['marketing'], notion: DEPT_KEYS, gmail: ['emails', 'sales', 'ops', 'fin', 'delivery'],
-  fullenrich: ['sales'], imessage: ['sales'], apollo: ['sales'], pandadoc: ['ops', 'delivery'], xero: ['fin'], stripe: ['fin'],
-  slack: ['emails', 'ops', 'delivery'], googledrive: ['ops', 'delivery', 'fin'], googlecalendar: ['emails', 'sales', 'delivery'],
-  playwright: ['marketing', 'ops'], github: ['ops', 'delivery'], linear: ['ops', 'delivery'], jira: ['ops', 'delivery'],
-  hubspot: ['sales', 'marketing'], salesforce: ['sales'], zapier: DEPT_KEYS, figma: ['marketing', 'delivery'],
-  webflow: ['marketing', 'delivery'], higgsfield: ['marketing'], territool: ['sales'],
-  chrome: DEPT_KEYS, // the owner's browser: every desk may need a web app
-};
+// The MSME office wires no tool strips. Only the owner's browser keeps an alias; any other connector
+// the machine has is listed under its own name and wired to every pod.
+const ALIASES = { chrome: ['claudeinchrome', 'chrome', 'claudechrome', 'browser'] };
+const DEPTS_BY_KEY = { chrome: DEPT_KEYS };
 
 export const norm = s => String(s).toLowerCase().replace(/^claude\.ai\s+/, '').replace(/\s+mcp$/, '').replace(/[^a-z0-9]/g, '');
 export const toolId = name => String(name).replace(/[^A-Za-z0-9_-]+/g, '_'); // "claude.ai Gmail" → mcp__claude_ai_Gmail__* · "claude-in-chrome" keeps its hyphens

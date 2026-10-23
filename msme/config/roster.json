@@ -1,0 +1,99 @@
+{
+  "_about": "The single source of truth for the MSME working-capital office: departments, the one LLM-backed agent per department, and the lightweight desk roles (no LLM call of their own). src/data.js (3D office), roster.mjs (server) and msme/*.mjs (engine) all read this file. 'slot' only places the pod on the floor.",
+  "title": "MSME Working-Capital Arbiter",
+  "company": "Meridian Auto Components (MSME)",
+  "currency": "INR",
+  "departments": [
+    {
+      "key": "sales", "name": "SALES", "slot": { "pos": [30, -23], "w": 20, "d": 30 },
+      "colour": { "chip": "#EADC8F", "ink": "#A08A1E", "floor": "#F6F1DA" },
+      "priority": 0.8,
+      "agent": { "id": "sales_agent", "name": "SALES AGENT", "role": "Sales Department Agent",
+        "does": "Proposes order acceptance, credit terms and stock-clearing discounts that grow revenue, and says what each one costs in cash.",
+        "actions": ["accept_bulk_order", "extend_credit_terms", "clear_stock_discount"] },
+      "desks": [
+        { "id": "sales_intake", "name": "ORDER INTAKE", "role": "Order Intake Desk", "does": "Watches incoming orders and turns them into bulk-order proposals." },
+        { "id": "sales_credit", "name": "CREDIT TERMS", "role": "Credit Terms Desk", "does": "Sizes how much extra credit a customer can be given." },
+        { "id": "sales_disc", "name": "DISCOUNTING", "role": "Discounting Desk", "does": "Finds slow stock that is worth clearing at a discount." }
+      ]
+    },
+    {
+      "key": "procurement", "name": "PROCUREMENT / INVENTORY", "slot": { "pos": [-30, 23], "w": 20, "d": 30 },
+      "colour": { "chip": "#E69393", "ink": "#C46060", "floor": "#FAE9E7" },
+      "priority": 0.7,
+      "agent": { "id": "proc_agent", "name": "PROCUREMENT AGENT", "role": "Procurement and Inventory Agent",
+        "does": "Proposes reorders and supplier prepayments so the shelves never run dry, and flags the cash and warehouse space they need.",
+        "actions": ["place_reorder", "prepay_supplier_discount"] },
+      "desks": [
+        { "id": "proc_reorder", "name": "REORDER PLANNER", "role": "Reorder Planner Desk", "does": "Works out how much to reorder from demand and lead time." },
+        { "id": "proc_terms", "name": "SUPPLIER TERMS", "role": "Supplier Terms Desk", "does": "Tracks supplier credit terms and early-payment discounts." },
+        { "id": "proc_stock", "name": "STOCK MONITOR", "role": "Stock Monitor Desk", "does": "Watches stock cover against the warehouse limit." }
+      ]
+    },
+    {
+      "key": "production", "name": "PRODUCTION / OPERATIONS", "slot": { "pos": [0, 48], "w": 20, "d": 30 },
+      "colour": { "chip": "#BFA2E3", "ink": "#7449A9", "floor": "#F2ECFA" },
+      "priority": 0.6,
+      "agent": { "id": "prod_agent", "name": "PRODUCTION AGENT", "role": "Production and Operations Agent",
+        "does": "Proposes overtime and maintenance spend to keep output up, and states the cash they take from the week.",
+        "actions": ["schedule_overtime", "schedule_maintenance"] },
+      "desks": [
+        { "id": "prod_capacity", "name": "CAPACITY PLANNER", "role": "Capacity Planner Desk", "does": "Compares demand to what the line can make." },
+        { "id": "prod_payroll", "name": "PAYROLL", "role": "Payroll Desk", "does": "Keeps the weekly wage run and overtime cost in view." },
+        { "id": "prod_maint", "name": "MAINTENANCE", "role": "Maintenance Desk", "does": "Tracks machine hours since the last service." }
+      ]
+    },
+    {
+      "key": "collections", "name": "COLLECTIONS / RECEIVABLES", "slot": { "pos": [-30, -23], "w": 20, "d": 26 },
+      "colour": { "chip": "#5ADEB7", "ink": "#1E9070", "floor": "#E9F6EF" },
+      "priority": 0.75,
+      "agent": { "id": "coll_agent", "name": "COLLECTIONS AGENT", "role": "Collections and Receivables Agent",
+        "does": "Proposes dunning, early-payment discounts and invoice factoring to pull cash in sooner, and prices each one.",
+        "actions": ["send_dunning", "early_payment_discount", "factor_invoices"] },
+      "desks": [
+        { "id": "coll_ageing", "name": "INVOICE AGEING", "role": "Invoice Ageing Desk", "does": "Buckets receivables by days outstanding." },
+        { "id": "coll_dunning", "name": "DUNNING", "role": "Dunning Desk", "does": "Chooses which overdue customers to chase first." },
+        { "id": "coll_factor", "name": "FACTORING EVALUATOR", "role": "Factoring Evaluator Desk", "does": "Prices invoice factoring against the fee." }
+      ]
+    },
+    {
+      "key": "treasury", "name": "TREASURY", "slot": { "pos": [30, 23], "w": 20, "d": 26 },
+      "colour": { "chip": "#98A5EF", "ink": "#5B66CE", "floor": "#EAEDFA" },
+      "priority": 0.9,
+      "agent": { "id": "treas_agent", "name": "TREASURY AGENT", "role": "Treasury Agent",
+        "does": "Proposes overdraft draws and repayments, payables timing and early payments to keep cash on the right side of zero.",
+        "actions": ["draw_overdraft", "repay_overdraft", "delay_payables", "pay_payables_early"] },
+      "desks": [
+        { "id": "treas_forecast", "name": "CASH FORECASTER", "role": "Cash Forecaster Desk", "does": "Projects cash for the next four weeks." },
+        { "id": "treas_payables", "name": "PAYABLES SCHEDULER", "role": "Payables Scheduler Desk", "does": "Orders supplier payments by due date." },
+        { "id": "treas_loan", "name": "LOAN / OVERDRAFT", "role": "Loan and Overdraft Desk", "does": "Tracks the overdraft limit and its interest." }
+      ]
+    },
+    {
+      "key": "compliance", "name": "COMPLIANCE / RISK", "slot": { "pos": [0, -48], "w": 20, "d": 30 },
+      "colour": { "chip": "#8FD3F4", "ink": "#2E86AB", "floor": "#E6F4FB" },
+      "priority": 0.95,
+      "agent": { "id": "comp_agent", "name": "COMPLIANCE AGENT", "role": "Compliance and Risk Agent",
+        "does": "Proposes the payments the law and the bank covenant require: overdue MSME suppliers and GST dues.",
+        "actions": ["settle_msme_overdue", "pay_gst_dues"] },
+      "desks": [
+        { "id": "comp_terms", "name": "PAYMENT-TERM RULES", "role": "Payment-Term Rules Desk", "does": "Watches the 45-day MSME payment rule on every supplier invoice." },
+        { "id": "comp_covenant", "name": "COVENANT CHECK", "role": "Covenant Check Desk", "does": "Watches the bank's current-ratio covenant." },
+        { "id": "comp_tax", "name": "TAX DATES (GST)", "role": "Tax Dates Desk", "does": "Tracks the GST return and payment dates." }
+      ]
+    },
+    {
+      "key": "arbiter", "name": "ARBITER", "slot": { "pos": [0, 0], "w": 20, "d": 20 },
+      "colour": { "chip": "#D1DECD", "ink": "#4C7A57", "floor": "#E9EFE4" },
+      "priority": 1,
+      "agent": { "id": "arbiter_agent", "name": "ARBITER", "role": "Constraint-Aware Arbiter",
+        "does": "Takes every department's proposals for the week, drops or trims the ones that break a hard financial constraint, and keeps the best feasible set. Plain code decides; the model only writes the explanation.",
+        "actions": [] },
+      "desks": [
+        { "id": "arb_conflict", "name": "CONFLICT DETECTOR", "role": "Conflict Detector Desk", "does": "Finds proposals that fight over the same cash or contradict each other." },
+        { "id": "arb_constraint", "name": "CONSTRAINT CHECKER", "role": "Constraint Checker Desk", "does": "Runs the hard constraints: cash buffer, overdraft limit, covenant, 45-day rule, warehouse space." },
+        { "id": "arb_explain", "name": "EXPLAINER", "role": "Explainer Desk", "does": "Writes the plain-language reason for each decision." }
+      ]
+    }
+  ]
+}

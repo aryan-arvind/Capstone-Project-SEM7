@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Agents Office v3 (Beta)</title>
+<title>MSME Working-Capital Arbiter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
@@ -1050,11 +1050,11 @@
 <canvas id="scene"></canvas>
 <div id="hud"></div>
 <div id="topbar">
-  <span class="brand">AGENTS OFFICE <span class="ver">V3</span></span>
-  <div id="topconn"></div>
+  <span class="brand">MSME WORKING-CAPITAL ARBITER <span class="ver">CAPSTONE</span></span>
+  <div id="topconn" style="display:none"></div>
   <span class="sp"></span>
   <div id="topmodels"></div>
-  <button id="topCal" title="the calendar — tasks and routines on their days (P)">◷ CALENDAR</button>
+  <button id="topCal" title="the calendar" style="display:none">◷ CALENDAR</button>
   <span id="topAppr" style="display:none">⚠ <span>0</span></span>
   <span id="clock">—</span>
 </div>
@@ -1084,7 +1084,7 @@
       <div id="mMsgs"></div>
       <div id="mChips"></div>
       <div class="mInput">
-        <input id="mIn" placeholder="Message this agent… (add task: … · every weekday at 8am, … · approve / reject)" autocomplete="off">
+        <input id="mIn" placeholder="Ask this agent about its proposals…" autocomplete="off">
         <button id="mSend">SEND</button>
       </div>
     </div>
@@ -1128,7 +1128,7 @@
 <div id="tpanel">
   <div class="tp-cmd">
     <div class="tp-r1">
-      <button class="tp-dd" title="department"><span class="dot"></span><span class="tp-ddn">MARKETING</span></button>
+      <button class="tp-dd" title="department"><span class="dot"></span><span class="tp-ddn">SALES</span></button>
       <div class="tp-menu"></div>
       <textarea class="tp-in" rows="1" placeholder="Type a task…" autocomplete="off" spellcheck="false"></textarea>
       <button class="tp-big-btn" title="open the big editor (⌘⇧E)">⤢</button>
@@ -1156,7 +1156,7 @@
 <!-- V3.7: the big editor — the task box with room for a brief -->
 <div id="tpBig">
   <div class="tb-box">
-    <div class="tb-head"><span class="lab">TASK FOR</span><span class="dot"></span><span class="tb-dept">MARKETING</span><span class="sp"></span><button class="tb-close" title="close (Esc)">✕</button></div>
+    <div class="tb-head"><span class="lab">TASK FOR</span><span class="dot"></span><span class="tb-dept">SALES</span><span class="sp"></span><button class="tb-close" title="close (Esc)">✕</button></div>
     <textarea class="tb-in" placeholder="Write the task, or a whole brief…" autocomplete="off" spellcheck="false"></textarea>
     <div class="tb-foot"><div class="tp-hint tb-hint"></div><span class="kb"><b>⌘↵</b> adds · <b>Esc</b> closes</span><button class="tp-add tb-add">ADD</button></div>
   </div>

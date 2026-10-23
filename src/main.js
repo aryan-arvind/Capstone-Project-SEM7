@@ -1,20 +1,18 @@
 // Agents Office v2 — Three.js isometric office with zoom-driven LOD
 // Far: clean pods + agent counts (Image 1 read). Near: diorama with 3D people + holo screens (Image 2 read).
 import * as THREE from 'three';
-import { TOKENS, DEPTS, DEPT_KEYS, AGENTS, LAYOUT, WORKLINES, APPROVAL_ASKS, APPROVAL_BY_AGENT } from './data.js';
+import { TOKENS, DEPTS, DEPT_KEYS, DECISION_KEYS, CENTRE_KEY, AGENTS, LAYOUT, WORKLINES, APPROVAL_ASKS, APPROVAL_BY_AGENT } from './data.js';
 import { hasScreens, makeScreen } from './screens.js'; // live screens (14 Sep): no-op without window.SCREENS
 import { V1, FILE_GEN, STATS, KPIS, P, rnd, ri, person, money } from './v1data.js';
-import { PROFILE, profileRows, profileTickKpi, profileMockup, applyTopbar } from './profile.js';
+import { ledger, deptRows } from './ledger.js';
+const PROFILE = null; // (the per-industry demo profile belongs to the old generic office and is retired)
+const profileRows = () => null, profileTickKpi = () => {}, profileMockup = () => null, applyTopbar = () => {};
 import {
   PLINTH_H, mat, rbox, makePlinth, makeFloorTitle, makeDesk, makeChair,
   makePerson, posePerson, poseWork, makePlant, makeServerRack, makeMeetingTable, makeWalkway, makeWarnSprite,
 } from './builders.js';
-import { initMcp } from './mcp.js';
-import { loadConnectors } from './connectors.js';
 import { initTasks } from './tasks.js';
-import { initBrain } from './brain.js';
-import { initHero, HERO } from './hero.js';
-if (HERO) document.body.classList.add('hero'); // the website hero: no Sahni.ai mark or licence line on top of the page that already carries them // sahni.ai/custom hero mode (16 Sep 2026): opt-in via window.HERO, no-op otherwise
+import { initArbiter } from './arbiter.js';
 let tasks = null; // V3 task boards — initialised after the rail constants exist
 
 /* ---------- renderer / scene / camera ---------- */
@@ -144,11 +142,11 @@ for (const [key_, L] of Object.entries(LAYOUT)) {
 
 // brain centre (V3.6, AJ 6 Sep 2026): the particle nebula is RETIRED. The vault's wiki-link graph
 // is etched into the pod floor (src/brain.js); reads glint, writes add notes, G opens the full graph.
-let brain;
+let brain; // the Arbiter's interface (audit view); kept under this name for the many call sites
 {
-  const bg = deptRT.brain.group;
-  brain = initBrain({ scene, brainGroup: bg, getR: () => R, esc: (t) => esc(t), hud, toScreen: (p) => toScreen(p), getCamera: () => camera });
-  const plant = makePlant(); plant.position.set(6.2, 0.12, -5.8); bg.add(plant);
+  const bg = deptRT[CENTRE_KEY].group;
+  brain = initArbiter();
+  const plant = makePlant(); plant.position.set(8.2, 0.12, -8.2); bg.add(plant);
 }
 
 /* the thinking sweep (M4, D): a soft comet orbits the brain; as it passes each dept's
@@ -157,11 +155,11 @@ let brain;
    departments highlighted one at a time. */
 const SWEEP_PERIOD = 16000; // ms per full orbit
 const DEPT_AZ = {};
-for (const k of DEPT_KEYS)
+for (const k of DECISION_KEYS)
   DEPT_AZ[k] = Math.atan2(LAYOUT[k].pos[1], LAYOUT[k].pos[0]);
 function tickSweep(now) {
   // the sweep is overview theatre — it bows out while a dept is focused
-  const on = (!focused || focused === 'brain') ? 1 : 1 - focusDim;
+  const on = (!focused || focused === CENTRE_KEY) ? 1 : 1 - focusDim;
   const theta = (now % SWEEP_PERIOD) / SWEEP_PERIOD * Math.PI * 2;
   let domDept = null, domS = 0;
   for (const [k, az] of Object.entries(DEPT_AZ)) {
@@ -180,8 +178,8 @@ function tickSweep(now) {
   return { theta, strength: domS, col: domDept ? DEPTS[domDept].chip : '#FFFFFF' };
 }
 
-// walkways dept -> brain
-for (const k of DEPT_KEYS) {
+// walkways dept -> the Arbiter
+for (const k of DECISION_KEYS) {
   const L = LAYOUT[k];
   const sx = Math.sign(L.pos[0]), sz = Math.sign(L.pos[1]);
   const from = [L.pos[0] - sx * (L.w / 2 - 1), L.pos[1] - sz * (L.d / 2 - 1)];
@@ -194,13 +192,13 @@ for (const k of DEPT_KEYS) {
 }
 // tag remaining brain furnishings (plinth, plant) for the focus-dim pass — these DO go
 // dark in galaxy mode, unlike the 'brainCore' nebula tagged above
-deptRT.brain.group.traverse(o => { if ((o.isMesh || o.isSprite) && !o.userData.dept) o.userData.dept = 'brain'; });
+deptRT[CENTRE_KEY].group.traverse(o => { if ((o.isMesh || o.isSprite) && !o.userData.dept) o.userData.dept = CENTRE_KEY; });
 
 /* (M5.3 per AJ: the bridge cables are gone — the walkways alone carry the connection;
    the brain↔dept relationship shows through the badge sweep + meetings.) */
 
 /* desks + people per dept */
-const COLS = { emails: 2, sales: 2, marketing: 2, ops: 2, fin: 2, delivery: 2 };
+const COLS = Object.fromEntries(DEPT_KEYS.map(k => [k, 2]));
 for (const a of AGENTS) {
   const dRT = deptRT[a.dept];
   const dept = DEPTS[a.dept];
@@ -270,11 +268,11 @@ const mcp = {
   isLive: () => !!(mcpImpl && mcpImpl.live),
 };
 let mcpUsage = null;
-loadConnectors().then(c => { mcpImpl = initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors: c }); if (mcpDark) mcpImpl.setDark(true); if (mcpUsage) mcpImpl.setUsage(mcpUsage); });
+// (the MCP connector docks belong to the generic office; the MSME office wires no tool strips) if (mcpDark) mcpImpl.setDark(true); if (mcpUsage) mcpImpl.setUsage(mcpUsage); });
 applyTopbar(); // INDUSTRY PROFILE (12 Sep 2026): the demo company's name beside the brand
 
 // plants on outer corners
-for (const k of ['emails', 'sales', 'marketing', 'ops', 'delivery']) {
+for (const k of DECISION_KEYS.filter(x => x !== 'treasury')) {
   const L = LAYOUT[k];
   const sx = Math.sign(L.pos[0]), sz = Math.sign(L.pos[1]);
   const p = makePlant();
@@ -318,41 +316,17 @@ function tickDim(dt) {
     m.color.copy(m.userData.baseColor).lerp(m.userData.dimColor, focusDim);
 }
 
-/* ---------- department billboards — v1's exact agreed metric rows + amber approval row ---------- */
-const kv = id => KPIS.find(k => k.id === id).val;
-let brainNotes = brain.state.notes;
-const BB_ROWS = profileRows() || {
-  emails: [
-    ['EMAILS SENT', () => STATS.emailsSent],
-    ['REPLIES DRAFTED', () => STATS.drafts]],
-  delivery: [
-    ['REPORTS SENT', () => STATS.reports],
-    ['ON TRACK', () => STATS.onTrack + ' / ' + STATS.projects]],
-  sales: [
-    ['CALLS S·A·J', () => STATS.spencer + '·' + STATS.arwin + '·' + STATS.jack],
-    ['NEW MANAGERS', () => STATS.managers],
-    ['AUTO-ONBOARDED', () => STATS.autoOnb]],
-  marketing: [
-    ['NEW INSIGHTS', () => STATS.insMkt],
-    ['COST PER USER', () => '$' + Math.round(STATS.cpa)]],
-  ops: [
-    ['PROPOSALS MADE', () => Math.round(kv('proposals'))],
-    ['NEW INSIGHTS', () => STATS.insOps]],
-  fin: [
-    ['INVOICES ISSUED', () => Math.round(kv('invoices'))],
-    ['BILLS PAID', () => STATS.billsPaid]],
-  brain: [
-    ['NOTES INDEXED', () => brainNotes.toLocaleString('en-NZ')]],
-};
-if (PROFILE && !BB_ROWS.brain) BB_ROWS.brain = [['NOTES INDEXED', () => brainNotes.toLocaleString('en-NZ')]];
-for (const k of [...DEPT_KEYS, 'brain']) {
+/* ---------- department billboards: proposals, outcomes, violations caught, cash impact (INR) ---------- */
+let brainNotes = 0;
+const BB_ROWS = Object.fromEntries(DEPT_KEYS.map(k => [k, deptRows(k)]));
+for (const k of DEPT_KEYS) {
   const dept = DEPTS[k];
   const n = AGENTS.filter(a => a.dept === k).length;
   const b = document.createElement('div');
   b.className = 'badge';
   b.innerHTML = `
     <div class="b-name"><span class="dot" style="background:${dept.chip}"></span>${dept.short}<span class="live"></span></div>
-    <div class="b-count">${k === 'brain' ? '<span class="b-num">∞</span><span class="b-lab">KNOWLEDGE</span>' : `<span class="b-num">${n}</span><span class="b-lab">AGENTS</span>`}</div>
+    <div class="b-count"><span class="b-num">${n}</span><span class="b-lab">${k === CENTRE_KEY ? 'DESKS' : 'AGENT + DESKS'}</span></div>
     <div class="b-metrics">${BB_ROWS[k].map((row, i) => `
       <div class="m-row"><span class="m-lab">${row[0]}</span><span class="m-val" data-m="${k}-${i}">${row[1]()}</span></div>`).join('')}
     </div>
@@ -362,12 +336,6 @@ for (const k of [...DEPT_KEYS, 'brain']) {
     else if (e.target.closest('.b-tasks') && tasks) { tasks.openFor(k); e.stopPropagation(); }
     else zoomToDept(k);
   });
-  if (k === 'brain') { // V3.6: a small tag names the etched floor and opens the graph (the big card stays retired)
-    b.className = 'badge brainTag';
-    b.innerHTML = `<div class="b-name"><span class="dot" style="background:${dept.chip}"></span>THE BRAIN<b>${brain.state.notes.toLocaleString('en-NZ')}</b>NOTES</div>`;
-    b.onclick = (e) => { e.stopPropagation(); brain.open(); };
-    b.title = 'open the Brain (G)';
-  }
   hud.appendChild(b);
   deptRT[k].badge = b;
   deptRT[k].vals = BB_ROWS[k].map(row => String(row[1]()));
@@ -378,20 +346,21 @@ for (const k of [...DEPT_KEYS, 'brain']) {
   // natural spot is off-screen at overview and the clamp used to shove it onto its agents.
   // V3.2 (AJ): every card sits ON its own pod, over the wiring — screen-tuned per pod at the
   // 0.84 overview. Standard = centred above the anchor (back corner, y clears the pills);
-  // side = hangs off the pod's edge, vertically centred (fin: its back corner is the Brain;
-  // ops: its back corner is the marketing pod's front row).
+  // side = hangs off the pod's edge, vertically centred (treasury: its back corner is the Arbiter;
+  // production: its back corner is the procurement pod's front row).
   const ANCHOR = {
-    marketing: [-36, 8.6, 13.4],
-    emails:    [-30, 8.6, -32.6],
-    delivery:  [0, 10.6, -57.6],   // y 10.6: the top-bar clamp otherwise lands it on the back-row pills
-    sales:     [48, 8.6, -32],     // over the pod's right corner — past the DELIVERY pod's desks and the Sales Lead pill
-    ops:       [-13.5, 4, 54],     // side LEFT
-    fin:       [43.5, 4, 17],      // side RIGHT
-    brain:     [-5.5, 3.2, -5.5],  // just above the pod's back corner
+    procurement: [-36, 8.6, 13.4],
+    collections: [-30, 8.6, -32.6],
+    compliance:  [0, 10.6, -57.6],   // y 10.6: the top-bar clamp otherwise lands it on the back-row pills
+    sales:       [48, 8.6, -32],     // over the pod's right corner
+    production:  [-13.5, 4, 54],     // side LEFT
+    treasury:    [43.5, 4, 17],      // side RIGHT
+    arbiter:     [-9, 6.2, -9.5],    // above the centre pod's back corner
   };
+
   deptRT[k].badgeAnchor = new THREE.Vector3(...ANCHOR[k]);
-  if (k === 'fin') deptRT[k].sideBadge = true;
-  if (k === 'ops') { deptRT[k].sideBadge = true; deptRT[k].sideLeft = true; }
+  if (k === 'treasury') deptRT[k].sideBadge = true;
+  if (k === 'production') { deptRT[k].sideBadge = true; deptRT[k].sideLeft = true; }
 }
 function updateBillboards() {
   for (const k of Object.keys(BB_ROWS)) {
@@ -509,8 +478,8 @@ addEventListener('keydown', (e) => {
   else if (e.key === '-' || e.key === '_') zoomStep(1 / 1.5);
   else if (e.key === '0') zoomOut();
   else if (e.key === 'x' || e.key === 'X') { if (!meeting) planMeeting(performance.now()); }
-  else if (e.key >= '1' && e.key <= '6') { // jump straight to a department
-    const dept = ['marketing', 'emails', 'sales', 'ops', 'fin', 'delivery'][+e.key - 1];
+  else if (e.key >= '1' && e.key <= '7') { // jump straight to a department
+    const dept = DEPT_KEYS[+e.key - 1];
     if (focused !== dept) enterFocus(dept);
   }
   else if (e.key === 'c' || e.key === 'C') { // in a department: open its (lead) agent's chat
@@ -590,7 +559,7 @@ const vignette = document.getElementById('vignette');
 const mMsgs = document.getElementById('mMsgs');
 let modalOpen = null, modalTab = 'chat'; // modalOpen = agent id open in the rail slide-over
 // V3.3: the rail docks LEFT for every department — the task panel has the right side
-const RAIL_SIDE = { marketing: 'left', emails: 'left', sales: 'left', ops: 'left', fin: 'left', delivery: 'left' };
+const RAIL_SIDE = Object.fromEntries(DEPT_KEYS.map(k => [k, 'left']));
 const SCREEN_RIGHT = new THREE.Vector3(1, 0, -1).normalize();
 
 function ensureChat(id) {
@@ -640,8 +609,8 @@ function renderChat(id) {
 }
 function renderActivity(id) {
   const r = R[id], v = r.v1;
-  const task = rnd(v.tasks || ['Working through the queue'])
-    .replace('{co}', rnd(P.co)).replace('{person}', person()).replace('{count}', ri(3, 9));
+  const last = r.feed[0];
+  const task = last ? last.text : 'Waiting for the next decision cycle';
   document.getElementById('mNow').innerHTML = `NOW &nbsp;<b>${esc(task)}</b>`;
   document.getElementById('mStats').innerHTML = (v.stats || []).map(([l, val]) => `
     <div class="st"><div class="st-l">${esc(l)}</div><div class="st-v">${esc(String(typeof val === 'function' ? val() : val))}</div></div>`).join('');
@@ -873,73 +842,16 @@ function ago(ts) {
 
 /* ---------- approval mockups — show AJ exactly what he's approving ---------- */
 function mockupFor(id) {
-  const chip = DEPTS[R[id].a.dept].chip;
-  const pm = profileMockup(R[id].a.dept, R[id].ask, R[id].a.name, esc); if (pm) return pm; // INDUSTRY PROFILE: the trade's own document, or a cover sheet for this ask
-  switch (id) {
-    case 'apay': return `<div class="mk mk-doc">
-      <div class="d-brand">INVOICE AUDIT — #218</div>
-      <div class="d-title">Design contractor</div>
-      <div class="d-line"><span>Invoiced</span><b>14 hrs × $110 = $1,540</b></div>
-      <div class="d-line"><span>Contract rate</span><b>$85/hr (signed 12 Mar)</b></div>
-      <div class="d-line"><span>Variance</span><b>+$350 ⚠</b></div>
-      <div class="d-line"><span>Scope</span><b>matches the brief ✓</b></div>
-      <div class="d-p">Hours and scope check out — only the rate is off, and there's no signed variation covering it. Recommend holding payment and querying the rate before it's paid.</div></div>`;
-    case 'piper': return `<div class="mk mk-doc">
-      <div class="d-brand">AGENTS OFFICE — PROPOSAL</div>
-      <div class="d-title">Ridgeline Property Group</div>
-      <div class="d-line"><span>Seats</span><b>12</b></div>
-      <div class="d-line"><span>Plan</span><b>Growth</b></div>
-      <div class="d-line"><span>Price</span><b>$1,080/mo · 12-mo lock</b></div>
-      <div class="d-p">Proof point: Auckland roofing co — 0 → 40 tracked calls/week in 14 days. Sign-online link included.</div></div>`;
-    case 'bill': return `<div class="mk mk-doc">
-      <div class="d-brand">REFUND VERIFICATION</div>
-      <div class="d-title">Harbour City Roofing — $680</div>
-      <div class="d-line"><span>Reason</span><b>double payment, two cards</b></div>
-      <div class="d-line"><span>Txn #1 / #2</span><b>verified ✓ / duplicate ✓</b></div>
-      <div class="d-line"><span>Account</span><b>14 months, good standing</b></div>
-      <div class="d-p">Legit case. Above my $500 limit — releases the moment you approve.</div></div>`;
-    case 'iggy': return `<div class="mk-phone">
-      <div class="ph-handle"></div>
-      <div class="ph-hook">“calls before 10am are a trap”</div>
-      <div class="ph-sub">connect rates nearly double 10:00–11:30am — across 40,000 dials</div>
-      <div class="ph-ui"><span>♥ 2.4k</span><span>💬 118</span><span>↗ share</span></div></div>`;
-    case 'ada': return `<div class="mk mk-ad">
-      <div class="ad-head"><div class="ad-av"></div><div><div class="ad-who">sahni.ai</div><div class="ad-sp">Sponsored</div></div></div>
-      <div class="ad-text">Cold call anxiety? Your first 5 dials decide your whole day…</div>
-      <div class="ad-media" style="background:linear-gradient(135deg, ${chip}55, ${chip}22)">“the 10am rule — call when they answer”</div>
-      <div class="ad-foot"><span class="ad-hl">Start your free trial</span><span class="ad-cta">SIGN UP</span></div>
-      <div class="ad-stat">CPA $29 · best performer · scaling to $180/day</div></div>`;
-    case 'newt': return `<div class="mk mk-mail">
-      <div class="ml-lab">SUBJECT A</div><div class="ml-sub">calls before 10am are a trap</div>
-      <div class="ml-lab">SUBJECT B</div><div class="ml-sub">we looked at 40,000 calls — call at this time</div>
-      <div class="ml-body">  before 10am ...... 11% connect
-  10:00–11:30 ...... 21% connect
-  after 4pm ........ 9% connect
-
-→ 3,400 subscribers · CTA: reply "10AM"</div></div>`;
-    case 'scout': return `<div class="mk mk-doc">
-      <div class="d-brand">OPPORTUNITY MEMO</div>
-      <div class="d-title">CallForge +8% price rise</div>
-      <div class="d-line"><span>Window</span><b>2–3 weeks</b></div>
-      <div class="d-line"><span>Play</span><b>comparison page + retargeting</b></div>
-      <div class="d-line"><span>Briefed</span><b>META ADS · PROPOSALS</b></div>
-      <div class="d-p">Their G2 reviews already flag value-for-money. Talk-track: 12-month price lock.</div></div>`;
-    case 'enzo': return `<div class="mk mk-doc">
-      <div class="d-brand">PURCHASE ORDER</div>
-      <div class="d-title">FullEnrich — 500 credits</div>
-      <div class="d-line"><span>Cost</span><b>$250 ($0.50/credit)</b></div>
-      <div class="d-line"><span>Current balance</span><b>38 credits — out tomorrow</b></div>
-      <div class="d-line"><span>Burn rate</span><b>~90/week</b></div>
-      <div class="d-p">Same card as last month. Without credits, enrichment stops and the Sales Lead runs dry.</div></div>`;
-    default: {
-      // generic: render the agent's own deliverable in a document frame
-      if (!FILE_GEN[id]) return '';
-      const f = FILE_GEN[id]();
-      return `<div class="mk mk-doc">
-        <div class="d-brand">${esc(f.name)}</div>
-        <div class="ml-body" style="border:0;margin:0;padding:6px 0 0">${esc(f.content.split('\n').slice(0, 9).join('\n'))}</div></div>`;
-    }
-  }
+  // what the owner is being asked to approve: the real proposal, with the constraint it hit
+  const r = R[id], pr = r.proposal;
+  if (!pr) return `<div class="mk mk-doc"><div class="d-brand">${esc(r.a.name)}</div><div class="d-p">${esc(r.ask || '')}</div></div>`;
+  return `<div class="mk mk-doc">
+    <div class="d-brand">PROPOSAL — ${esc(String(pr.action_type).replace(/_/g, ' ').toUpperCase())}</div>
+    <div class="d-title">${esc(money(pr.amount_inr))} · week ${esc(pr.timing_week)}</div>
+    <div class="d-line"><span>Cash impact</span><b>${esc(money(pr.cash_impact_inr))}</b></div>
+    <div class="d-line"><span>Confidence</span><b>${Math.round(pr.confidence * 100)}%</b></div>
+    <div class="d-line"><span>Arbiter</span><b>${esc(pr.outcome || 'pending')}</b></div>
+    <div class="d-p">${esc(pr.reason || pr.rationale || '')}</div></div>`;
 }
 
 /* ---------- approvals: agent STUCK → amber billboard row → chat approval message ---------- */
@@ -1014,51 +926,21 @@ document.getElementById('topAppr').addEventListener('click', () => {
 });
 
 /* ---------- event engine: weighted v1 templates → feed + chat + billboards ---------- */
-function weightedEv(evs) {
-  const tot = evs.reduce((s, e) => s + (e.p || 1), 0);
-  let x = Math.random() * tot;
-  for (const e of evs) { x -= (e.p || 1); if (x <= 0) return e; }
-  return evs[0];
-}
-function fireAgentEvent(seedTs) {
-  const ids = Object.keys(R).filter(id => R[id].v1 && R[id].v1.ev && R[id].state !== 'stuck');
-  const r = R[ids[Math.floor(Math.random() * ids.length)]];
-  const ev = weightedEv(r.v1.ev);
-  const text = ev.t();
-  r.feed.unshift({ i: ev.i, text, ts: seedTs || Date.now() });
+/* An agent event is something the engine really did: a proposal made, a decision taken, a constraint
+   hit. Nothing is generated at random any more; server.js / ledger polling calls pushAgentEvent. */
+function pushAgentEvent(agentId, icon, text, ts) {
+  const r = R[agentId]; if (!r) return;
+  r.feed.unshift({ i: icon, text, ts: ts || Date.now() });
   if (r.feed.length > 30) r.feed.pop();
-  if (!seedTs) {
-    spawnEmote(r, ev.i); // real work events pop their icon over the desk
-    mcp.onAgentEvent(r.a.id, r.a.dept, r.seat, performance.now()); // tool tile pulses + packet beam
-    if (focused === r.a.dept) { // live-update the rail activity row
-      const line = document.querySelector(`[data-line="${r.a.id}"]`);
-      if (line) line.textContent = ev.i + ' ' + text;
-    }
-    if (chatHist[r.a.id]) chatPush(r.a.id, { who: 'work', i: ev.i, text });
-    if (ev.kpi) { const k = KPIS.find(x => x.id === ev.kpi.id); if (k) k.val += ev.kpi.n; }
-    const d = r.a.dept, roll = Math.random();
-    profileTickKpi(d, roll); // INDUSTRY PROFILE: the pod's first number ticks up
-    if (d === 'emails') { if (roll < 0.45) STATS.emailsSent++; else if (roll < 0.7) STATS.drafts++; }
-    else if (d === 'delivery' && roll < 0.2) STATS.reports++;
-    else if (d === 'sales') {
-      if (roll < 0.4) STATS[rnd(['spencer', 'arwin', 'jack'])]++;
-      else if (roll < 0.5) STATS.autoOnb++;
-      else if (roll < 0.56) STATS.managers++;
-    }
-    else if (d === 'marketing') {
-      if (roll < 0.18) STATS.insMkt++;
-      else if (roll < 0.5) STATS.cpa = Math.max(25, STATS.cpa + (Math.random() - 0.55) * 1.2);
-    }
-    else if (d === 'ops' && roll < 0.22) STATS.insOps++;
-    else if (d === 'fin' && roll < 0.3) STATS.billsPaid++;
-    if (ev.brain || Math.random() < 0.12) { brainNotes++; brain.read(r.a.id); } // the Brain shows the read
-    updateBillboards();
-    if (modalOpen === r.a.id && modalTab === 'activity') renderActivity(r.a.id);
+  spawnEmote(r, icon); // the icon pops over the desk
+  if (focused === r.a.dept) { // live-update the rail activity row
+    const line = document.querySelector(`[data-line="${r.a.id}"]`);
+    if (line) line.textContent = icon + ' ' + text;
   }
+  if (chatHist[r.a.id]) chatPush(r.a.id, { who: 'work', i: icon, text });
+  updateBillboards();
+  if (modalOpen === r.a.id && modalTab === 'activity') renderActivity(r.a.id);
 }
-// seed a believable history so Activity isn't empty at boot
-for (let i = 0; i < 170; i++) fireAgentEvent(Date.now() - ri(2, 200) * 60000);
-for (const r of Object.values(R)) r.feed.sort((a, b) => b.ts - a.ts);
 
 /* ---------- minimal sim: work bobs, screen updates, brain meetings ---------- */
 let meeting = null; // Brain meetings fire ONLY on the X hotkey (AJ's call — demo cue, not ambient)
@@ -1067,7 +949,7 @@ let nextMetricAt = performance.now() + 3000;
 let nextEmoteAt = performance.now() + 2000;
 
 function planMeeting(now) {
-  const ids = Object.keys(R).filter(id => R[id].state === 'working');
+  const ids = Object.keys(R).filter(id => R[id].state === 'working' && R[id].a.dept !== CENTRE_KEY);
   const a = R[ids[Math.floor(Math.random() * ids.length)]];
   let b = a;
   while (b.a.dept === a.a.dept) b = R[ids[Math.floor(Math.random() * ids.length)]];
@@ -1236,31 +1118,9 @@ function tickSim(now, dt) {
       r.warn.scale.set(k, k, 1);
     }
   }
-  // ambient emoji work-bubbles pop over random desks every beat or two
-  if (now > nextEmoteAt) {
-    const ids = Object.keys(R).filter(id => R[id].state === 'working');
-    if (ids.length) spawnEmote(R[ids[Math.floor(Math.random() * ids.length)]],
-      rnd(['💬', '✉️', '📈', '💡', '✓', '📞', '🔍', '📎']));
-    nextEmoteAt = now + 1200 + Math.random() * 1800;
-  }
   tickEmotes(now, dt);
   tickSweep(now);
   brain.tick(now);
-  // schedule a new approval request now and then — capped so a long unattended demo
-  // never ends up with half the office stuck waving (v1 demo-safety rule)
-  if (now > nextApprovalAt && !(tasks && tasks.isLive())) { // V3.5: a live office's approvals are real (routine drafts) — no theatre ones
-    const pending = Object.values(R).filter(r => r.state === 'stuck').length;
-    if (pending < 2) {
-      const ids = Object.keys(R).filter(id => R[id].state === 'working' && !R[id].a.lead);
-      if (ids.length) requestApproval(ids[Math.floor(Math.random() * ids.length)]);
-    }
-    nextApprovalAt = now + 50000 + Math.random() * 40000;
-  }
-  // agent events drive everything — feed, chat streams, billboard metrics (nothing is static)
-  if (now > nextMetricAt) {
-    fireAgentEvent();
-    nextMetricAt = now + 2600 + Math.random() * 3800;
-  }
   // live screens: every monitor plays its own session; slower cadence when the camera is far away
   if (hasScreens()) {
     const slow = view.zoom < 1.4;
@@ -1297,7 +1157,7 @@ function tickLOD() {
     // keep billboards fully on screen (camera-readability rule)
     const bh = d.badge.offsetHeight * badgeScale, bw = d.badge.offsetWidth * badgeScale;
     let xf;
-    if (d.sideBadge) { // anchored by an edge, vertically centred (emails/sales/fin/delivery)
+    if (d.sideBadge) { // anchored by an edge, vertically centred (treasury/production)
       const rightEdge = innerWidth - ((tasks ? tasks.panelWidth() : 400) + 26); // V3.3: never under the panel
       sy = clamp(sy, 64 + bh / 2, innerHeight - bh / 2 - 8);
       if (d.sideLeft) { sx = clamp(sx, bw + 8, rightEdge); xf = 'translate(-100%,-50%)'; }
@@ -1370,7 +1230,7 @@ function applyRoster(agents) {
 tasks = initTasks({
   hud, R, deptRT, RAIL_SIDE, spawnEmote, chatPush, chatHist, feedPush, zoomToApproval, enterFocus, openAgent, esc,
   brainWrite: (id, title) => brain.write(id, title), brain,
-  onLive: (h) => { document.querySelector('#topbar .brand .ver').textContent = 'BETA'; document.title = `${h.name} — Agents Office`; brain.setOwner(h.name); brain.setQuiet(true); applyRoster(h.agents); },
+  onLive: (h) => { document.title = 'MSME Working-Capital Arbiter'; brain.setOwner(h.name); brain.setQuiet(true); applyRoster(h.agents); },
   onTools: (agentId, keys) => mcp.onToolsUsed(agentId, keys),
   requestApproval, setStuck: setStuckLive,
   onUsage: (u) => { if (mcp && mcp.setUsage) mcp.setUsage(u); }, // V3.6: the plan's gauge in the top bar
@@ -1378,9 +1238,7 @@ tasks = initTasks({
   toScreen: (p) => toScreen(p), reframe,
 });
 view.target.set(...overviewPos());
-addEventListener('resize', () => { if (!focused && !tween && !HERO) view.target.set(...overviewPos()); });
-const hero = HERO ? initHero({ THREE, scene, R, AGENTS, deptRT, LAYOUT, DEPTS, DEPT_KEYS, view, camera, spawnEmote, isBusy: () => !!focused || !!tween || !!drag }) : null;
-if (HERO && HERO.target) { view.target.set(...HERO.target); view.zoom = HERO.zoom || view.zoom; }
+addEventListener('resize', () => { if (!focused && !tween) view.target.set(...overviewPos()); });
 
 /* ---------- boot ---------- */
 function resize() {
@@ -1400,13 +1258,13 @@ resize();
   if (h.get('dark') === '1' || document.body.classList.contains('dark')) setDark(true);
   // typing #dark=1 into an OPEN tab is a same-document hash change (no reload) — react to it live
   addEventListener('hashchange', () => { const d = new URLSearchParams(location.hash.slice(1)).get('dark'); if (d === '1') setDark(true); else if (d === '0') setDark(false); });
-  if (h.get('board')) { // #board=1 → company board · #board=marketing → that dept's board
+  if (h.get('board')) { // #board=1 → company board · #board=treasury → that dept's board
     const b = h.get('board');
     if (LAYOUT[b] && b !== 'brain') tasks.openFor(b); else tasks.open();
   }
   syncOverviewBtn();
 }
-window.CC = { hero, flyTo, zoomToDept, zoomOut, zoomToApproval, requestApproval, openAgent, view, applyCamera, R, emotes,
+window.CC = { flyTo, zoomToDept, zoomOut, zoomToApproval, requestApproval, openAgent, view, applyCamera, R, emotes,
   setCam, setDark, brain, connectorReveal: () => mcp.startReveal(performance.now()),
   toggleBoard: () => tasks.toggle(), addTask: (agentId, title) => tasks.addTask(agentId, title), tasks, routines: () => tasks.routines };
 
@@ -1417,7 +1275,6 @@ function loop(now) {
   applyCamera();
   tickDim(dt);
   tickSim(now, dt);
-  if (hero) hero.tick(now, dt);
   tickLOD();
   tasks.tick(now);
   mcp.tick(now, dt, view, camera, focused, focusDim);

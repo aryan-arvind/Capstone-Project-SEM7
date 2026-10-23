@@ -1,8 +1,8 @@
 // Bundle src/main.js (+three) into a single self-contained HTML that opens by double-click.
 import { build } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { buildBrainGraph } from './graph-build.mjs';
-await buildBrainGraph(); // V3.6: bake the vault's wiki-link graph into src/braingraph.js
+
+// (the old notes graph is retired; the Arbiter pod replaces it)
 
 const res = await build({
   entryPoints: ['src/main.js'],

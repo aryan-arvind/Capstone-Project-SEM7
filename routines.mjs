@@ -7,7 +7,7 @@
 // This release: routines are for Emails, Accounting and Sales only. The other departments get
 // them later; a routine for one of them is refused with a sentence, not an error code.
 //
-//   { "id": "inbox-triage", "dept": "emails", "agent": "elead",
+//   { "id": "weekly-cash-review", "dept": "treasury", "agent": "treas_agent",
 //     "title": "Triage the overnight inbox", "text": "Triage the overnight inbox: what needs me, …",
 //     "when": { "kind": "weekdays", "at": "08:00" },      ← src/when.js
 //     "needsOk": false, "paused": false, "model": "opus", "effort": "high" }   ← optional: model sonnet · opus · fable; effort low · medium · high · xhigh · max (default: the office's, then the model's own)
@@ -18,8 +18,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, nextRun, valid } from './src/when.js';
 
-export const ALLOWED = ['emails', 'fin', 'sales'];
-export const NAMES = { emails: 'Emails', fin: 'Accounting', sales: 'Sales', marketing: 'Marketing', ops: 'Operations', delivery: 'Delivery' };
+import { DEPTS } from './src/data.js';
+export const ALLOWED = []; // the decision cycle replaces scheduled routines in the MSME office
+export const NAMES = Object.fromEntries(Object.entries(DEPTS).map(([k, d]) => [k, d.short]));
 export const file = brainPath => path.join(brainPath, 'Agents Office', 'routines.json');
 export const stateFile = dataDir => path.join(dataDir, 'routines.json');
 export const LATE_AFTER = 90 * 1000; // a run more than 90 s past its minute was missed (asleep, or the office was off) → runs once, marked LATE
@@ -27,9 +28,9 @@ export const LATE_AFTER = 90 * 1000; // a run more than 90 s past its minute was
 const slug = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 const readJSON = (p, fallback) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; } };
 
-/** "Routines come to Marketing in a later release. This release: Emails, Accounting, Sales." */
+/** Routines are not part of the MSME office. */
 export function refusal(dept) {
-  return `Routines come to ${NAMES[dept] || dept} in a later release. This release: Emails, Accounting and Sales.`;
+  return `Scheduled routines are not part of the decision cycle (${NAMES[dept] || dept}).`;
 }
 
 /** Normalise + check one routine against the roster. Returns { routine, problems }. Fixed fields are kept as given; bad ones are named. */

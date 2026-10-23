@@ -10,7 +10,7 @@
 //   ---
 //   name: proposal                    (defaults to the folder name)
 //   description: How we write a proposal
-//   agents: [piper]                   (agent ids — see office.agents.json)
+//   agents: [treas_agent]                   (agent ids — see office.agents.json)
 //   departments: [sales]              (or whole departments; neither = every agent)
 //   ---
 // Then the instructions in plain Markdown. See SKILLS.md for the guide and CLAUDE.md for how Claude

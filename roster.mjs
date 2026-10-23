@@ -1,7 +1,7 @@
-// Agents Office — the roster (Beta). Who sits where is fixed (six pods, 35 seats); what each
+// MSME office — the roster. Who sits where comes from msme/config/roster.json; what each
 // agent is called, does and uses is yours to change in office.agents.json.
 //   built-in defaults  ← office.agents.json  ← <brain>/Agents Office/agents.json  ← office.agents.local.json (gitignored)
-// Departments, leads and seats cannot be changed from these files; the office ignores such
+// Departments, leads and seats come from msme/config/roster.json and cannot be changed from these files; the office ignores such
 // edits and says so. `brief` is the owner's standing instructions to that agent (multi-line),
 // read before every task. Skills — how a kind of work is done — live beside the agents in
 // skills.mjs. See CLAUDE.md for how to change agents with Claude Code.
@@ -32,7 +32,7 @@ export function validate(doc, base = defaults()) {
   for (const e of list) {
     if (!e || typeof e !== 'object' || !e.id) { problems.push('an entry has no "id" — skipped'); continue; }
     const a = out.find(x => x.id === e.id);
-    if (!a) { problems.push(`"${e.id}" is not one of the 35 seats — skipped (new agents are not supported; rename a seat instead)`); continue; }
+    if (!a) { problems.push(`"${e.id}" is not a seat in msme/config/roster.json — skipped (add seats there)`); continue; }
     if (seen.has(e.id)) problems.push(`"${e.id}" appears twice — the later entry wins`);
     seen.add(e.id);
     if (e.department !== undefined && e.department !== a.department) problems.push(`"${e.id}": department cannot change (${a.department} → ${e.department}) — ignored`);
