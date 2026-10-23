@@ -39,6 +39,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { claudeCommand } from './msme/llm.mjs';
 import { loadConfig, ROOT } from './config.mjs';
 import { layoutGraph, readVault, readOfficeNotes } from './graph-build.mjs';
 import { DEPTS, DEPT_KEYS } from './src/data.js';
@@ -134,7 +135,7 @@ async function askX(system, user, { maxTokens = 4000, tools = true, timeout = RU
   args.push(...modelArgs(model, effort));
   const env = { ...process.env }; delete env.CLAUDECODE; // the CLI refuses to nest inside another Claude Code session
   return new Promise((resolve, reject) => {
-    const p = spawn('claude', args, { cwd: CLI_CWD, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const { cmd, prefix } = claudeCommand(); const p = spawn(cmd, [...prefix, ...args], { cwd: CLI_CWD, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '', err = '', text = '', used = [], gotResult = false, usageOut = null, modelUsed = null;
     const timer = setTimeout(() => { p.kill('SIGKILL'); reject(new Error(`Claude took longer than ${timeout / 1000} s`)); }, timeout);
     const feed = line => {
