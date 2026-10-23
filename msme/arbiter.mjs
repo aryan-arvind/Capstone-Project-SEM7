@@ -21,7 +21,7 @@
 import { PARAMS } from './params.mjs';
 import { ACTIONS, CONTRADICTIONS } from './actions.mjs';
 import { lookahead, evaluateSnapshot, totalMagnitude, check } from './constraints.mjs';
-import { deptOfAgent } from './roster.mjs';
+import { deptOfAgent, agentName } from './roster.mjs';
 
 const k1000 = x => Math.max(1000, Math.round(x / 1000) * 1000);
 const inr = n => 'Rs ' + Math.round(n).toLocaleString('en-IN');
@@ -143,7 +143,7 @@ export function arbitrate(rawProposals, state, p = PARAMS) {
       blockedBy = [...new Set(newViol.map(v => v.constraint))];
       const why = newViol.length ? `${newViol[0].constraint.replace(/_/g, ' ').toLowerCase()}: ${newViol[0].detail}` : null;
       if (outcome === 'modified') reason = `Reduced from ${inr(pr.amount_inr)} to ${inr(executed.find(e => e.id === pr.id).amount_inr)} (${Math.round(f * 100)}%)${why ? ` because the full amount would break ${why}` : ' because a smaller amount scores better for the company'}.`;
-      else if (!withFull.valid && rival !== undefined) reason = `Rejected: it contradicts "${label(props[rival])}" from ${props[rival].agent}, which was kept because it is worth more under the same constraints.`;
+      else if (!withFull.valid && rival !== undefined) reason = `Rejected: it contradicts "${label(props[rival])}" from ${agentName(props[rival].agent)}, which was kept because it is worth more under the same constraints.`;
       else if (why) reason = `Rejected: with the approved set it would break ${why}.`;
       else reason = `Rejected: it is feasible but lowers the objective by ${inr(best.J - withFull.J)} compared with the chosen set.`;
     }

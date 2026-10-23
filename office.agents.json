@@ -1,4 +1,0 @@
-{
-  "_about": "Optional per-seat overrides (name, role, does, tools, brief, model, effort). The seats themselves come from msme/config/roster.json; put personal edits in office.agents.local.json.",
-  "agents": []
-}

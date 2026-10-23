@@ -28,11 +28,12 @@ await step('roster: 7 departments, one agent + three desks each', async () => {
   }
   return `${ids.size} seats`;
 });
-await step('roster: server loads the same seats', async () => {
-  const { loadRoster } = await import('./roster.mjs');
-  const r = loadRoster(); if (r.agents.length !== 28) throw new Error('agents: ' + r.agents.length);
-  if (r.problems.length) throw new Error(r.problems[0]);
-  return '28 agents';
+await step('roster: the 3D office and the engine read the same seats', async () => {
+  const { AGENTS } = await import('./src/data.js');
+  const { DEPARTMENTS } = await import('./msme/roster.mjs');
+  const n = DEPARTMENTS.reduce((s, d) => s + 1 + d.desks.length, 0);
+  if (AGENTS.length !== 28 || n !== 28) throw new Error(`office ${AGENTS.length}, engine ${n}`);
+  return '28 seats';
 });
 
 /* ---------- 2. build ---------- */
@@ -68,7 +69,25 @@ else {
   finally { if (browser) await browser.close(); }
 }
 
-/* ---------- 4. unit tests ---------- */
+/* ---------- 4. the server and a full decision cycle over HTTP ---------- */
+await step('server: a decision cycle over HTTP', async () => {
+  const port = 4600 + Math.floor(Math.random() * 300);
+  const srv = spawn(process.execPath, ['serve.mjs'], { cwd: ROOT, env: { ...process.env, PORT: String(port) }, stdio: 'ignore' });
+  try {
+    const base = `http://localhost:${port}`;
+    for (let i = 0; i < 40; i++) { try { if ((await fetch(base + '/api/health')).ok) break; } catch {} await new Promise(r => setTimeout(r, 150)); }
+    const post = async (op, b = {}) => { const r = await fetch(`${base}/api/msme/${op}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }); const j = await r.json(); if (!r.ok) throw new Error(op + ': ' + j.error); return j; };
+    await post('reset', { seed: 3, strategy: 'constraint_aware', mode: 'mock' });
+    const s = await post('cycle');
+    if (s.week !== 1 || !s.tasks.length) throw new Error('cycle did not advance');
+    if (!s.tasks.every(t => ['executed', 'rejected', 'blocked'].includes(t.state))) throw new Error('unresolved task states');
+    const page = await (await fetch(base + '/')).text();
+    if (!/MSME WORKING-CAPITAL ARBITER/.test(page)) throw new Error('page not served');
+    return `week ${s.week}, ${s.tasks.length} proposals`;
+  } finally { srv.kill(); }
+});
+
+/* ---------- 5. unit tests ---------- */
 if (fs.existsSync(path.join(ROOT, 'test'))) await step('unit tests (node --test)', async () => (await sh('node', ['--test', 'test/*.test.mjs'])).split('\n').filter(l => /^# (pass|fail)/.test(l)).join(' · '));
 
 const failed = results.filter(r => !r).length;

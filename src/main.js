@@ -11,7 +11,9 @@ import {
   PLINTH_H, mat, rbox, makePlinth, makeFloorTitle, makeDesk, makeChair,
   makePerson, posePerson, poseWork, makePlant, makeServerRack, makeMeetingTable, makeWalkway, makeWarnSprite,
 } from './builders.js';
-import { initTasks } from './tasks.js';
+import { initProposals } from './proposals.js';
+import { initAudit } from './audit.js';
+import { initExperiments } from './experiments.js';
 import { initArbiter } from './arbiter.js';
 let tasks = null; // V3 task boards — initialised after the rail constants exist
 
@@ -326,7 +328,6 @@ for (const k of DEPT_KEYS) {
   b.className = 'badge';
   b.innerHTML = `
     <div class="b-name"><span class="dot" style="background:${dept.chip}"></span>${dept.short}<span class="live"></span></div>
-    <div class="b-count"><span class="b-num">${n}</span><span class="b-lab">${k === CENTRE_KEY ? 'DESKS' : 'AGENT + DESKS'}</span></div>
     <div class="b-metrics">${BB_ROWS[k].map((row, i) => `
       <div class="m-row"><span class="m-lab">${row[0]}</span><span class="m-val" data-m="${k}-${i}">${row[1]()}</span></div>`).join('')}
     </div>
@@ -468,12 +469,11 @@ addEventListener('pointerup', (e) => {
   }
 });
 addEventListener('keydown', (e) => {
-  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return; // typing in the bar, the big editor or a menu never fires a hotkey
-  if (e.key === 'Escape') { if (tasks && tasks.calendar && tasks.calendar.isOpen()) { if (tasks.calendar.popOpen()) tasks.calendar.closePop(); else tasks.calendar.close(); } else if (brain.isOpen()) brain.close(); else if (tasks && tasks.isOpen()) tasks.close(); else zoomOut(); }
-  else if (e.key === 'p' || e.key === 'P') { if (tasks && tasks.calendar) tasks.calendar.toggle(); } // V3.2.1 (16 Sep 2026): the calendar
-  else if (tasks && tasks.calendar && tasks.calendar.isOpen()) return; // the calendar has its own keys (← → W M T)
-  else if (e.key === 'g' || e.key === 'G') brain.toggle(); // V3.6: the full-screen Brain graph
-  else if (e.key === 'b' || e.key === 'B') { if (tasks) tasks.toggle(); } // V3: the company-wide board
+  if (e.key !== 'Escape' && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return; // typing in a box or a menu never fires a hotkey (Escape still closes a view)
+  if (e.key === 'Escape') { if (audit.isOpen()) audit.close(); else if (experiments.isOpen()) experiments.close(); else if (focused) exitFocus(true); }
+  else if (e.key === 'g' || e.key === 'G') { experiments.close(); audit.toggle(); } // the audit log
+  else if (e.key === 'e' || e.key === 'E') { audit.close(); experiments.toggle(); } // the experiment results
+  else if (audit.isOpen() || experiments.isOpen()) return;
   else if (e.key === '+' || e.key === '=') zoomStep(1.5);
   else if (e.key === '-' || e.key === '_') zoomStep(1 / 1.5);
   else if (e.key === '0') zoomOut();
@@ -902,9 +902,6 @@ function syncApprovals() {
     deptRT[k].apprRow.style.display = n ? 'flex' : 'none';
     deptRT[k].apprN.textContent = n;
   }
-  const top = document.getElementById('topAppr');
-  top.style.display = total ? 'inline-flex' : 'none';
-  top.querySelector('span').textContent = total;
   // mirror into the docked rail header + row status tags
   if (focused && focused !== 'brain') {
     const n = stuckIn(focused).length;
@@ -919,11 +916,6 @@ function zoomToApproval(dept) {
   if (focused === dept) openAgentRail(s.a.id);
   else enterFocus(dept, s.a.id);
 }
-document.getElementById('topCal').addEventListener('click', () => { if (tasks && tasks.calendar) tasks.calendar.toggle(); }); // V3.2.1: the top-bar calendar button (same as P)
-document.getElementById('topAppr').addEventListener('click', () => {
-  const s = Object.values(R).find(r => r.state === 'stuck');
-  if (s) zoomToApproval(s.a.dept);
-});
 
 /* ---------- event engine: weighted v1 templates → feed + chat + billboards ---------- */
 /* An agent event is something the engine really did: a proposal made, a decision taken, a constraint
@@ -1227,16 +1219,10 @@ function applyRoster(agents) {
   }
   if (tasks && tasks.syncPills) tasks.syncPills(); // the pills were rebuilt — put the clock chips back
 }
-tasks = initTasks({
-  hud, R, deptRT, RAIL_SIDE, spawnEmote, chatPush, chatHist, feedPush, zoomToApproval, enterFocus, openAgent, esc,
-  brainWrite: (id, title) => brain.write(id, title), brain,
-  onLive: (h) => { document.title = 'MSME Working-Capital Arbiter'; brain.setOwner(h.name); brain.setQuiet(true); applyRoster(h.agents); },
-  onTools: (agentId, keys) => mcp.onToolsUsed(agentId, keys),
-  requestApproval, setStuck: setStuckLive,
-  onUsage: (u) => { if (mcp && mcp.setUsage) mcp.setUsage(u); }, // V3.6: the plan's gauge in the top bar
-  getFocused: () => focused, getZoom: () => view.zoom, getFocusDim: () => focusDim,
-  toScreen: (p) => toScreen(p), reframe,
-});
+tasks = initProposals({ R, getFocused: () => focused, enterFocus, pushAgentEvent, openAgent, onSnapshot: () => updateBillboards() });
+const audit = initAudit(), experiments = initExperiments();
+brain.onOpen(() => audit.open()); // clicking the Arbiter's floor opens the audit log
+tasks.refresh();
 view.target.set(...overviewPos());
 addEventListener('resize', () => { if (!focused && !tween) view.target.set(...overviewPos()); });
 
