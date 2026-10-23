@@ -1,0 +1,8 @@
+﻿{
+  "buildCommand": "node build.mjs",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/", "destination": "/command-centre-v2.html" },
+    { "source": "/dark", "destination": "/command-centre-v2.html" }
+  ]
+}
