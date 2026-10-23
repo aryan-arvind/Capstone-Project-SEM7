@@ -162,8 +162,16 @@ What the audit shows, including what does not favour the Arbiter:
    explanations) the model made 7 calls and used 17,219 input+output tokens (prompt-cache reads excluded), about 88 s,
    0 schema failures. A 12-week episode is about twelve times that per strategy, so LLM experiments are limited to a few seeds.
 
-[docs/sensitivity.md](docs/sensitivity.md) shows how the Arbiter's own design choices move these numbers (a pessimism
-margin on the largest receivable, the weight and target of the liquidity term).
+[docs/sensitivity.md](docs/sensitivity.md) shows how the Arbiter's own design choices move these numbers (30 seeds):
+
+* A **pessimism margin** (assume the largest receivable is paid 2 weeks late) does what the shock calls for: in
+  *delayed receivable* the violation rate falls from 0.14 to 0.08 and the mean minimum cash goes from Rs -31,736 to
+  Rs 2,98,714. The price is steep: baseline operating profit falls from Rs 5.3 lakh to Rs 0.4 lakh and stock-outs
+  more than double (798 to 1,774 units). Protection against a shock that does not happen is paid for every week.
+* A **higher liquidity weight and target** (1.0, Rs 10 lakh) gives a smaller version of the same trade: delayed-receivable
+  violations 0.14 to 0.09, baseline profit Rs 5.3 lakh to Rs 4.2 lakh.
+* Neither variant changes the baseline violation rate (already about 0.03); they move the cost-versus-robustness trade-off,
+  not the headline.
 
 ### Threats to validity
 
