@@ -13,7 +13,7 @@
 // `check` looks `horizon_weeks` ahead in expected-value mode with the proposals applied. A violation
 // is {constraint, week, detail, magnitude_inr}: how much money (or stock value) short the rule is.
 import { PARAMS } from './params.mjs';
-import { project, schedule } from './sim.mjs';
+import { project, schedule, clone } from './sim.mjs';
 import { snapshot } from './books.mjs';
 
 export const CONSTRAINTS = ['MIN_CASH_BUFFER', 'OD_LIMIT', 'COVENANT_RATIO', 'PAYMENT_TERM', 'INVENTORY_CAPACITY'];
@@ -36,7 +36,14 @@ export function evaluateSnapshot(snap, p = PARAMS) {
 export function lookahead(proposalSet, state, p = PARAMS) {
   const holder = { pending: [] };
   for (const pr of proposalSet) schedule(holder, pr);
-  return project(state, holder.pending, p.sim.horizon_weeks, p);
+  const k = p.constraints.stress_largest_receivable_delay_weeks || 0;
+  let from = state;
+  if (k > 0 && state.ar.length) { // pessimism margin: the largest customer pays k weeks later than forecast
+    from = clone(state);
+    const big = [...from.ar].sort((a, b) => b.amount - a.amount || a.id.localeCompare(b.id))[0];
+    big.exp += k;
+  }
+  return project(from, holder.pending, p.sim.horizon_weeks, p);
 }
 
 export function check(proposalSet, state, p = PARAMS) {

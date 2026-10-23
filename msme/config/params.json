@@ -35,7 +35,8 @@
     "gst_every_weeks": 4,
     "maintenance_interval_weeks": 8,
     "breakdown_cost": 400000,
-    "breakdown_prob_when_overdue": 0.25
+    "breakdown_prob_when_overdue": 0.25,
+    "other_current_liabilities": 2500000
   },
   "effects": {
     "extend_credit_weeks": 2,
@@ -53,9 +54,11 @@
   },
   "constraints": {
     "min_cash_buffer": 300000,
-    "covenant_min_current_ratio": 1.2,
+    "covenant_min_current_ratio": 1.33,
     "payment_term_days": 45,
-    "inventory_capacity_units": 6000
+    "inventory_capacity_units": 6000,
+    "stress_largest_receivable_delay_weeks": 0,
+    "_about": "covenant_min_current_ratio 1.33 is the Tandon-committee norm banks apply to working-capital limits in India. stress_largest_receivable_delay_weeks: when above 0, every look-ahead assumes the largest unpaid customer invoice is paid that many weeks later than forecast (a generic pessimism margin, off by default; used as an ablation)."
   },
   "objective": {
     "_about": "J(S) = w_profit * sum(confidence_i * profit_i) + w_risk * sum(risk_reduction_i) + w_liquidity * min(min_headroom(S), liquidity_target), where min_headroom is the lowest projected cash above the buffer over the horizon. The Arbiter maximises J over feasible subsets of the proposals.",

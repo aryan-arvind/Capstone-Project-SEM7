@@ -55,7 +55,7 @@ export function snapshot(st, p) {
   const invValue = st.inv.units * p.sim.unit_cost;
   const shortfall = Math.max(0, -st.cash);
   const currentAssets = Math.max(0, st.cash) + ar + invValue;
-  const currentLiabilities = ap + st.od.used + st.gstPayable + shortfall;
+  const currentLiabilities = ap + st.od.used + st.gstPayable + p.sim.other_current_liabilities + shortfall;
   const termWeeks = p.constraints.payment_term_days / 7;
   const msmeOverdue = sum(st.ap.filter(i => i.msme && (st.week - i.issued) > termWeeks), i => i.amount);
   return {

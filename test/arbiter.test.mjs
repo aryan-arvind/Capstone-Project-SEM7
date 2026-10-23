@@ -39,12 +39,13 @@ test('an over-subscribed week is trimmed to what the cash allows', () => {
 });
 
 test('an amount that breaks a limit is reduced, not just dropped, when a smaller one is worth doing', () => {
+  const q = structuredClone(p); q.constraints.covenant_min_current_ratio = 0.5; // isolate the warehouse limit
   const st = world(); st.demandMult = 1.5; st.inv.units = 300;
-  const r = arbitrate([prop('proc_agent', 'place_reorder', 4_500_000)], st, p);
+  const r = arbitrate([prop('proc_agent', 'place_reorder', 4_500_000)], st, q);
   const d = r.decisions[0];
   assert.equal(d.outcome, 'modified');
   assert.ok(d.amount_approved_inr < d.amount_requested_inr && d.amount_approved_inr > 0);
-  assert.equal(check(r.executed, st, p).length, 0);
+  assert.equal(check(r.executed, st, q).length, 0);
   assert.match(d.reason, /Reduced from/);
 });
 
