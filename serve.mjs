@@ -39,7 +39,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { claudeCommand } from './msme/llm.mjs';
+import { claudeCommand, createLLM } from './msme/llm.mjs';
+import { createSession } from './msme/session.mjs';
 import { loadConfig, ROOT } from './config.mjs';
 import { layoutGraph, readVault, readOfficeNotes } from './graph-build.mjs';
 import { DEPTS, DEPT_KEYS } from './src/data.js';
@@ -448,6 +449,7 @@ async function routinesChat(a, text) {
 }
 
 /* ---------- http ---------- */
+const session = createSession({ dataDir: DATA, llmFactory: () => createLLM({ model: cfg.model }) });
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
 const body = req => new Promise((resolve, reject) => { let s = ''; req.on('data', d => { s += d; }); req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } }); });
 
@@ -462,6 +464,33 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       const page = fs.readFileSync(HTML, 'utf8');
       return res.end(url.pathname === '/dark' ? page.replace('<body>', '<body class="dark">') : page); // /dark: the same file, opened in dark mode
+    }
+    /* ---------- the MSME working-capital engine (msme/session.mjs) ---------- */
+    if (url.pathname.startsWith('/api/msme/')) {
+      const op = url.pathname.slice('/api/msme/'.length);
+      try {
+        if (op === 'state' && req.method === 'GET') return json(res, 200, session.snapshot());
+        if (op === 'audit' && req.method === 'GET') return json(res, 200, { records: session.readAudit(Math.min(+url.searchParams.get('limit') || 200, 2000)) });
+        if (op === 'results' && req.method === 'GET') return json(res, 200, session.latestResults() || { none: true });
+        if ((op === 'export/csv' || op === 'export/json') && req.method === 'GET') {
+          const f = path.join(ROOT, 'results', op === 'export/csv' ? 'results.csv' : 'results.json');
+          if (!fs.existsSync(f)) return json(res, 404, { error: 'no results yet: run an experiment first' });
+          res.writeHead(200, { 'content-type': op === 'export/csv' ? 'text/csv' : 'application/json', 'content-disposition': 'attachment; filename=' + path.basename(f) });
+          return res.end(fs.readFileSync(f));
+        }
+        const ex = url.pathname.match(/^\/api\/msme\/experiments\/([^/]+)$/);
+        if (ex && req.method === 'GET') { const j = session.job(ex[1]); return j ? json(res, 200, j) : json(res, 404, { error: 'unknown experiment' }); }
+        if (req.method !== 'POST') return json(res, 405, { error: 'POST' });
+        const b = await body(req);
+        if (op === 'reset') return json(res, 200, session.reset(b));
+        if (op === 'propose') return json(res, 200, await session.propose());
+        if (op === 'arbitrate') return json(res, 200, await session.arbitrate());
+        if (op === 'execute') return json(res, 200, await session.execute());
+        if (op === 'cycle') return json(res, 200, await session.cycle());
+        if (op === 'inject') return json(res, 200, session.inject(b.type));
+        if (op === 'experiments') return json(res, 200, session.startExperiment(b));
+        return json(res, 404, { error: 'unknown msme endpoint' });
+      } catch (e) { return json(res, 400, { error: e.message }); }
     }
     if (url.pathname === '/api/health') return json(res, 200, { ok: true, version, backend, model: cfg.model, modelName: modelName(cfg.model), models: MODEL_KEYS, effort: cfg.effort || '', efforts: EFFORT_KEYS, name: cfg.name, brain: BRAIN, notes: graph.notes, depts: DEPT_KEYS,
       agents: agentsOut(), setup: setupMap(), routines: (l => ({ count: l.length, paused: l.filter(r => r.paused).length, depts: routines.ALLOWED }))(loadRoutines()), roster: { customised: roster.customised, briefed: roster.briefed, files: roster.files, problems: roster.problems }, skills: (({ count, shipped, brain, problems }) => ({ count, shipped, brain, problems }))(skills.summary()), tools: backend === 'claude-cli', mcp: mcp.summary(), teams: TEAMS, browser: mcp.summary().browser });
