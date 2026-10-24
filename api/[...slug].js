@@ -51,8 +51,6 @@ export default async function handler(req, res) {
     const url = new URL(req.url, 'http://localhost');
     try {
             if (op === 'llm-status' && req.method === 'GET') return sendJson(res, 200, getLLMStatus());
-      if (op === 'chat' && req.method === 'POST') return sendJson(res, 200, await session.chat(b));
-      if (op === 'client-action' && req.method === 'POST') return sendJson(res, 200, session.executeClientAction(b));
       if (op === 'state' && req.method === 'GET') return sendJson(res, 200, session.snapshot());
       if (op === 'audit' && req.method === 'GET') {
         const limit = Math.min(+url.searchParams.get('limit') || 200, 2000);
@@ -73,6 +71,8 @@ export default async function handler(req, res) {
       }
       if (req.method !== 'POST') return sendJson(res, 405, { error: 'POST' });
       const b = await readBody(req);
+      if (op === 'chat') return sendJson(res, 200, await session.chat(b));
+      if (op === 'client-action') return sendJson(res, 200, session.executeClientAction(b));
       if (op === 'reset') return sendJson(res, 200, session.reset(b));
       if (op === 'propose') return sendJson(res, 200, await session.propose());
       if (op === 'arbitrate') return sendJson(res, 200, await session.arbitrate());

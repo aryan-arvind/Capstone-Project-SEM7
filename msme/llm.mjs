@@ -55,7 +55,7 @@ export function loadEnv() {
           }
         }
       }
-    } catch {}
+    } catch { }
   }
 }
 loadEnv();
@@ -80,7 +80,7 @@ function saveCache() {
   try {
     fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
     fs.writeFileSync(CACHE_FILE, JSON.stringify(cacheMap, null, 2), 'utf8');
-  } catch {}
+  } catch { }
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -128,7 +128,7 @@ export async function callLLM({ systemPrompt, userPrompt, schemaName, mockHandle
   if (groqKey) {
     try {
       const body = {
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: systemPrompt + '\nRespond with valid JSON only.' },
           { role: 'user', content: userPrompt }
@@ -158,7 +158,7 @@ export async function callLLM({ systemPrompt, userPrompt, schemaName, mockHandle
   // 2. Try Gemini (gemini-2.5-flash / gemini-1.5-flash via generateContent)
   if (geminiKey) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`;
       const body = {
         contents: [
           {
@@ -180,7 +180,7 @@ export async function callLLM({ systemPrompt, userPrompt, schemaName, mockHandle
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) {
         lastProvider = 'gemini';
-        return { text, model: 'llm:gemini-2.5-flash' };
+        return { text, model: 'llm:gemini-3.5-flash' };
       }
     } catch (e) {
       console.warn('[LLM Gemini Warning]', e.message);

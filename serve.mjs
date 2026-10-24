@@ -35,8 +35,6 @@ const server = http.createServer(async (req, res) => {
     const op = url.pathname.slice('/api/msme/'.length);
     try {
             if (op === 'llm-status' && req.method === 'GET') return json(res, 200, getLLMStatus());
-      if (op === 'chat' && req.method === 'POST') return json(res, 200, await session.chat(b));
-      if (op === 'client-action' && req.method === 'POST') return json(res, 200, session.executeClientAction(b));
       if (op === 'state' && req.method === 'GET') return json(res, 200, session.snapshot());
       if (op === 'audit' && req.method === 'GET') return json(res, 200, { records: session.readAudit(Math.min(+url.searchParams.get('limit') || 200, 2000)) });
       if (op === 'results' && req.method === 'GET') return json(res, 200, session.latestResults() || { none: true });
@@ -50,6 +48,8 @@ const server = http.createServer(async (req, res) => {
       if (ex && req.method === 'GET') { const j = session.job(ex[1]); return j ? json(res, 200, j) : json(res, 404, { error: 'unknown experiment' }); }
       if (req.method !== 'POST') return json(res, 405, { error: 'POST' });
       const b = await readBody(req);
+      if (op === 'chat') return json(res, 200, await session.chat(b));
+      if (op === 'client-action') return json(res, 200, session.executeClientAction(b));
       if (op === 'reset') return json(res, 200, session.reset(b));
       if (op === 'propose') return json(res, 200, await session.propose());
       if (op === 'arbitrate') return json(res, 200, await session.arbitrate());

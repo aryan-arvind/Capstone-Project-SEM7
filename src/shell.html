@@ -552,12 +552,126 @@
   .vswitch-btn { font-family: var(--ui); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; border: 0; background: none; padding: 5px 14px; border-radius: 99px; cursor: pointer; color: var(--grey); transition: all .2s; }
   .vswitch-btn.on { background: var(--ink); color: var(--cream); }
   
-  #clientDashboard { position: fixed; inset: 52px 0 0 0; background: var(--cream); z-index: 23; display: flex; flex-direction: column; overflow: hidden; }
+  /* Phase E: Persistent 3-column layout */
+  #clientDashboard {
+    position: fixed; inset: 52px 0 0 0; background: var(--cream); z-index: 23;
+    display: flex; flex-direction: row; overflow: hidden;
+  }
   #clientDashboard.hide { display: none !important; }
-  .cd-nav { display: flex; gap: 8px; padding: 12px 28px; border-bottom: 1px solid var(--hairline); background: color-mix(in srgb, var(--cream) 96%, transparent); }
-  .cd-tab { font-family: var(--ui); font-size: 11px; letter-spacing: .08em; font-weight: 600; padding: 7px 16px; border: 1px solid var(--hairline); border-radius: 99px; background: none; cursor: pointer; color: var(--grey); transition: all .15s; }
-  .cd-tab.on { background: var(--ink); color: var(--cream); border-color: var(--ink); }
-  .cd-body { flex: 1; overflow-y: auto; padding: 24px 32px 60px; max-width: 1300px; width: 100%; margin: 0 auto; }
+
+  /* Left Nav */
+  .cd-leftnav {
+    width: 200px; flex-shrink: 0; background: #fff; border-right: 1px solid var(--hairline);
+    display: flex; flex-direction: column; padding: 16px 10px; gap: 4px;
+  }
+  .cd-nav-brand {
+    font-size: 10px; font-weight: 800; letter-spacing: .15em; color: var(--grey);
+    padding: 4px 10px 10px; border-bottom: 1px solid var(--hairline); margin-bottom: 8px;
+  }
+  .cd-leftnav .cd-tab {
+    font-family: var(--ui); font-size: 11.5px; letter-spacing: .03em; font-weight: 600;
+    padding: 10px 12px; border: 1px solid transparent; border-radius: 8px;
+    background: none; cursor: pointer; color: var(--ink); text-align: left;
+    display: flex; align-items: center; gap: 8px; transition: all .15s;
+  }
+  .cd-leftnav .cd-tab:hover { background: rgba(0,0,0,0.04); }
+  .cd-leftnav .cd-tab.on {
+    background: var(--ink); color: var(--cream); font-weight: 700;
+  }
+  .cd-leftnav .cd-tab .tab-icon { font-size: 14px; }
+
+  /* Center Main Body */
+  .cd-body {
+    flex: 1; overflow-y: auto; padding: 24px 28px 60px; min-width: 0;
+  }
+
+  /* Right-Hand Chat Panel */
+  .cd-rightchat {
+    width: 350px; flex-shrink: 0; background: #fff; border-left: 1px solid var(--hairline);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .chat-header {
+    padding: 14px 16px; border-bottom: 1px solid var(--hairline);
+    display: flex; justify-content: space-between; align-items: center;
+    background: color-mix(in srgb, var(--cream) 40%, #fff);
+  }
+  .chat-title { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+  .chat-chips-wrap { padding: 10px 14px 8px; border-bottom: 1px solid var(--hairline); background: #fafafa; }
+  .chat-chips-label { font-size: 9.5px; color: var(--grey); font-weight: 700; text-transform: uppercase; margin-bottom: 6px; letter-spacing: .08em; }
+  .chat-chips { display: flex; flex-direction: column; gap: 5px; }
+  .chat-chip {
+    text-align: left; font-family: var(--ui); font-size: 11px; background: #fff;
+    border: 1px solid var(--hairline); border-radius: 6px; padding: 6px 10px;
+    color: #2E86AB; cursor: pointer; transition: all .15s; font-weight: 500;
+  }
+  .chat-chip:hover { border-color: #2E86AB; background: rgba(46,134,171,0.06); }
+  .chat-feed { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .chat-msg { font-size: 12px; line-height: 1.45; border-radius: 8px; padding: 10px 12px; max-width: 90%; }
+  .chat-msg.user { align-self: flex-end; background: var(--ink); color: var(--cream); }
+  .chat-msg.bot { align-self: flex-start; background: #f4f4f4; color: var(--ink); border: 1px solid var(--hairline); }
+  .chat-msg.system { align-self: center; font-size: 11px; color: var(--grey); background: rgba(0,0,0,0.03); text-align: center; }
+  .chat-msg-source { font-size: 9px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: inline-block; padding: 2px 6px; border-radius: 4px; }
+  .chat-msg-source.groq { background: #E6F4EA; color: #1E9070; }
+  .chat-msg-source.gemini { background: #E8F0FE; color: #1A73E8; }
+  .chat-msg-source.rule-fallback { background: #F1F3F4; color: #5F6368; }
+  .chat-action-btn {
+    margin-top: 8px; display: block; width: 100%; text-align: center; font-family: var(--ui);
+    font-size: 11px; font-weight: 700; background: #2E86AB; color: #fff; border: 0;
+    border-radius: 6px; padding: 7px 12px; cursor: pointer; transition: background .15s;
+  }
+  .chat-action-btn:hover { background: #226786; }
+  .chat-input-bar {
+    padding: 10px 14px; border-top: 1px solid var(--hairline); background: #fff;
+    display: flex; gap: 8px;
+  }
+  .chat-input-bar input {
+    flex: 1; padding: 8px 12px; font-size: 12px; border: 1px solid var(--hairline);
+    border-radius: 6px; outline: none; font-family: inherit;
+  }
+  .chat-input-bar input:focus { border-color: var(--ink); }
+
+  /* Unified Button Styling */
+  .cd-btn {
+    font-family: var(--ui); font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    padding: 7px 14px; border-radius: 6px; cursor: pointer; transition: all .15s;
+    border: 1px solid transparent; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .cd-btn.primary { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+  .cd-btn.primary:hover { opacity: 0.9; }
+  .cd-btn.success { background: #1E9070; color: #fff; }
+  .cd-btn.success:hover { background: #167057; }
+  .cd-btn.danger { background: #B4391E; color: #fff; }
+  .cd-btn.danger:hover { background: #8E2B15; }
+  .cd-btn.ghost { background: none; border: 1px solid var(--hairline); color: var(--ink); }
+  .cd-btn.ghost:hover { border-color: var(--ink); background: rgba(0,0,0,0.03); }
+  .cd-btn.lg { font-size: 13px; padding: 11px 22px; border-radius: 8px; }
+
+  /* Office Feed Overlay (Requirement 3) */
+  .office-feed-overlay {
+    position: fixed; right: 28px; top: 72px; width: 380px; max-height: calc(100vh - 110px);
+    background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(10px);
+    border: 1px solid var(--hairline); border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.18);
+    z-index: 50; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .office-feed-overlay.hide { display: none !important; }
+  .feed-header { padding: 14px 18px; border-bottom: 1px solid var(--hairline); background: #fbfbfb; }
+  .feed-title { font-size: 12px; font-weight: 800; letter-spacing: .08em; color: var(--ink); }
+  .feed-subtitle { font-size: 10px; color: var(--grey); margin-top: 2px; }
+  .feed-stream { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .feed-item {
+    font-size: 11.5px; line-height: 1.4; padding: 9px 12px; border-radius: 8px;
+    background: #f7f7f7; border-left: 3px solid var(--ink); animation: fadeInFeed .25s ease;
+  }
+  .feed-item.arbiter { border-left-color: #1E9070; background: #EDFBF5; }
+  .feed-item.verifier { border-left-color: #2E86AB; background: #F0F7FB; }
+  .feed-footer { padding: 12px 18px; border-top: 1px solid var(--hairline); background: #fbfbfb; }
+  @keyframes fadeInFeed { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .cd-charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; margin-top: 16px; }
+  .cd-chart-card { background: #fff; border: 1px solid var(--hairline); border-radius: 12px; padding: 16px 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
+  .cd-chart-title { font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .cd-chart-sub { font-size: 10.5px; color: var(--grey); margin-bottom: 12px; }
+
   .cd-section { display: flex; flex-direction: column; gap: 16px; }
   .cd-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--hairline); padding-bottom: 12px; }
   .cd-head h2 { font-family: var(--serif); font-size: 24px; font-weight: normal; color: var(--ink); }
@@ -696,18 +810,61 @@
   <div class="tp-rows"></div>
 </div>
 
-<!-- Client Dashboard View (Phase B) -->
+<!-- Client Dashboard View (Phase E Persistent 3-Column Layout) -->
 <div id="clientDashboard">
-  <div class="cd-nav">
-    <button class="cd-tab on" data-tab="overview">OVERVIEW</button>
-    <button class="cd-tab" data-tab="ar">RECEIVABLES (AR)</button>
-    <button class="cd-tab" data-tab="ap">PAYABLES (AP)</button>
-    <button class="cd-tab" data-tab="inv">INVENTORY</button>
-    <button class="cd-tab" data-tab="decisions">AGENT DECISIONS</button>
-    <button class="cd-tab" data-tab="scenarios">SCENARIOS</button>
-    <button class="cd-tab" data-tab="digitize">DIGITIZE</button>
+  <!-- Left Nav -->
+  <aside class="cd-leftnav">
+    <div class="cd-nav-brand">FINANCE SUITE</div>
+    <button class="cd-tab on" data-tab="overview"><span class="tab-icon">📊</span> Overview</button>
+    <button class="cd-tab" data-tab="ar"><span class="tab-icon">📥</span> Receivables</button>
+    <button class="cd-tab" data-tab="ap"><span class="tab-icon">📤</span> Payables</button>
+    <button class="cd-tab" data-tab="inv"><span class="tab-icon">📦</span> Inventory</button>
+    <button class="cd-tab" data-tab="decisions"><span class="tab-icon">⚖️</span> Agent Decisions</button>
+    <button class="cd-tab" data-tab="digitize"><span class="tab-icon">📄</span> Digitize</button>
+  </aside>
+
+  <!-- Central Main Content Area -->
+  <main id="cdBody" class="cd-body"></main>
+
+  <!-- Persistent Right-Hand Chat Panel -->
+  <aside class="cd-rightchat">
+    <div class="chat-header">
+      <div class="chat-title">
+        <span style="font-size:16px;">💬</span>
+        <strong>Ask your finance team</strong>
+      </div>
+      <div id="dashLLMBadge" class="cd-pill">LLM OFF</div>
+    </div>
+    <div class="chat-chips-wrap">
+      <div class="chat-chips-label">Suggested Prompts:</div>
+      <div class="chat-chips">
+        <button class="chat-chip" data-q="Can we pay GST this week?">Can we pay GST this week?</button>
+        <button class="chat-chip" data-q="Which customer should we chase first?">Which customer should we chase first?</button>
+        <button class="chat-chip" data-q="What if cash drops 20%?">What if cash drops 20%?</button>
+      </div>
+    </div>
+    <div id="chatHistoryFeed" class="chat-feed">
+      <div class="chat-msg system">
+        Welcome to your MSME Executive Finance Assistant. Ask questions about your books, cash runway, tax dues, or scenario shocks.
+      </div>
+    </div>
+    <form id="chatForm" class="chat-input-bar">
+      <input id="chatInput" type="text" placeholder="Ask your finance team..." autocomplete="off">
+      <button id="chatSendBtn" type="submit" class="cd-btn primary">Send</button>
+    </form>
+  </aside>
+</div>
+
+<!-- Floating Live Feed Overlay for Office 3D (Requirement 3) -->
+<div id="officeFeedOverlay" class="office-feed-overlay hide">
+  <div class="feed-header">
+    <div class="feed-title">⚡ AGENT DECISION CYCLE IN PROGRESS</div>
+    <span class="feed-subtitle">Live stream from department agents & arbiter</span>
   </div>
-  <div id="cdBody" class="cd-body"></div>
+  <div id="officeFeedStream" class="feed-stream"></div>
+  <div class="feed-footer">
+    <button id="btnReviewDecisions" class="cd-btn primary" style="width:100%;">Review Decisions in Dashboard →</button>
+  </div>
 </div>
 
 <div id="zoomCtl">
