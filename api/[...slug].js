@@ -7,7 +7,7 @@ import { DEPARTMENTS } from '../msme/roster.mjs';
 const cfg = loadConfig();
 const DATA = process.env.VERCEL ? '/tmp/data' : path.join(ROOT, 'data');
 const version = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch { return '?'; } })();
-const session = createSession({ dataDir: DATA });
+const session = createSession({ dataDir: DATA, live: cfg.live });
 
 const sendJson = (res, code, body) => {
   if (typeof res.status === 'function' && typeof res.json === 'function') {

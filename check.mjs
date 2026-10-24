@@ -1,14 +1,14 @@
-// MSME working-capital office — the build loop.
+﻿// MSME working-capital office â€” the build loop.
 //   node check.mjs        config + build + offline page smoke + unit tests
-// Every step prints ✓ or ✗ with the reason; the process exits 1 if anything failed.
+// Every step prints âœ“ or âœ— with the reason; the process exits 1 if anything failed.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './config.mjs';
 
 const results = [];
-const ok = (name, detail = '') => { results.push(true); console.log(`✓ ${name}${detail ? '  — ' + detail : ''}`); };
-const bad = (name, detail = '') => { results.push(false); console.log(`✗ ${name}${detail ? '  — ' + detail : ''}`); };
+const ok = (name, detail = '') => { results.push(true); console.log(`âœ“ ${name}${detail ? '  â€” ' + detail : ''}`); };
+const bad = (name, detail = '') => { results.push(false); console.log(`âœ— ${name}${detail ? '  â€” ' + detail : ''}`); };
 const step = async (name, fn) => { try { ok(name, (await fn()) || ''); return true; } catch (e) { bad(name, e.message); return false; } };
 const sh = (cmd, args) => new Promise((resolve, reject) => {
   const p = spawn(cmd, args, { cwd: ROOT, shell: process.platform === 'win32' }); let out = '', err = '';
@@ -46,7 +46,7 @@ await step('build: bundle', async () => {
 /* ---------- 3. page smoke (Playwright) ---------- */
 let chromium = null;
 try { ({ chromium } = await import('playwright')); } catch { try { ({ chromium } = await import('playwright-core')); } catch {} }
-if (!chromium) bad('smoke: playwright', 'not installed — npm i -D playwright-core');
+if (!chromium) bad('smoke: playwright', 'not installed â€” npm i -D playwright-core');
 else {
   let browser = null;
   try {
@@ -88,8 +88,13 @@ await step('server: a decision cycle over HTTP', async () => {
 });
 
 /* ---------- 5. unit tests ---------- */
-if (fs.existsSync(path.join(ROOT, 'test'))) await step('unit tests (node --test)', async () => (await sh('node', ['--test', 'test/*.test.mjs'])).split('\n').filter(l => /^# (pass|fail)/.test(l)).join(' · '));
+const testDir = path.join(ROOT, 'test');
+if (fs.existsSync(testDir)) {
+  const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.test.mjs')).map(f => path.join('test', f));
+  if (testFiles.length) await step('unit tests (node --test)', async () => (await sh('node', ['--test', ...testFiles])).split('\n').filter(l => /^# (pass|fail)/.test(l)).join(' Â· '));
+}
 
 const failed = results.filter(r => !r).length;
 console.log(failed ? `\n${failed} failed` : `\nall ${results.length} checks passed`);
 process.exit(failed ? 1 : 0);
+

@@ -13,7 +13,7 @@ const cfg = loadConfig();
 const DATA = path.join(ROOT, 'data');
 const HTML = path.join(ROOT, 'dist', 'command-centre-v2.html');
 const version = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch { return '?'; } })();
-const session = createSession({ dataDir: DATA });
+const session = createSession({ dataDir: DATA, live: cfg.live });
 
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
 const readBody = req => new Promise((resolve, reject) => { let s = ''; req.on('data', d => { s += d; }); req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } }); });

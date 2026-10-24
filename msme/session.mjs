@@ -14,19 +14,50 @@ import { realizedViolations, check } from './constraints.mjs';
 import { arTotal, apTotal } from './books.mjs';
 import { DEPARTMENTS, DECISION_DEPTS } from './roster.mjs';
 import { runExperiment, writeResults } from './run.mjs';
+import { initStateFromLedger } from './live.mjs';
 
 const blankStats = () => Object.fromEntries(DEPARTMENTS.map(d => [d.key, { proposed: 0, accepted: 0, modified: 0, rejected: 0, violations: 0, cashImpact: 0 }]));
 
-export function createSession({ dataDir, p = PARAMS } = {}) {
+export function createSession({ dataDir, p = PARAMS, live: defaultLive = false } = {}) {
   const auditFile = dataDir ? path.join(dataDir, 'audit.jsonl') : null;
+  const ledgerFile = dataDir ? path.join(dataDir, 'ledger.json') : null;
+  const baseP = p;
+  let activeP = p;
   let s = null;
   const jobs = new Map(); let jobSeq = 0;
 
-  function reset({ seed = 1, scenario = 'baseline', strategy = 'constraint_aware' } = {}) {
+  function reset({ seed = 1, scenario = 'baseline', strategy = 'constraint_aware', live } = {}) {
     if (!SCENARIOS.includes(scenario)) throw new Error('unknown scenario: ' + scenario);
     if (!STRATEGIES.includes(strategy)) throw new Error('unknown strategy: ' + strategy);
-    s = { id: Date.now().toString(36), seed: +seed, scenario, strategy, st: initState(+seed, scenario, p), phase: 'idle',
-      proposals: [], decision: null, tasks: [], stats: blankStats(), cycles: 0, lastRealized: [], injected: [], log: [], failures: [] };
+
+    const isLive = live !== undefined ? Boolean(live) : (process.env.MSME_LIVE === '1' || defaultLive);
+    let state = null;
+    let dataSource = 'synthetic';
+
+    if (isLive && ledgerFile && fs.existsSync(ledgerFile)) {
+      try {
+        const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+        activeP = {
+          ...baseP,
+          sim: {
+            ...baseP.sim,
+            ...(ledger.sim_overrides || {}),
+          },
+        };
+        state = initStateFromLedger(ledger, +seed, scenario, activeP);
+        dataSource = ledger.data_source || 'ledger.json';
+      } catch (err) {
+        throw new Error(`Failed to initialize live state from ${ledgerFile}: ${err.message}`);
+      }
+    } else {
+      activeP = baseP;
+      state = initState(+seed, scenario, baseP);
+      dataSource = 'synthetic';
+    }
+
+    s = { id: Date.now().toString(36), seed: +seed, scenario, strategy, st: state, phase: 'idle',
+      proposals: [], decision: null, tasks: [], stats: blankStats(), cycles: 0, lastRealized: [], injected: [], log: [], failures: [],
+      isLive: (dataSource !== 'synthetic'), dataSource };
     return snapshot();
   }
   const need = () => { if (!s) reset(); return s; };
@@ -36,7 +67,7 @@ export function createSession({ dataDir, p = PARAMS } = {}) {
   async function propose() {
     need();
     if (s.phase === 'proposed' || s.phase === 'arbitrated') throw new Error('this cycle is already under way: finish it first');
-    const r = proposeAll({ state: s.st, p, seed: s.seed });
+    const r = proposeAll({ state: s.st, p: activeP, seed: s.seed });
     s.failures = r.failures;
     s.proposals = r.proposals;
     s.tasks = r.proposals.map((pr, i) => ({ ...pr, id: `w${s.st.week}-${pr.agent}-${r.proposals.slice(0, i).filter(x => x.agent === pr.agent).length + 1}`, dept: DECISION_DEPTS.find(d => d.agent.id === pr.agent)?.key, state: 'proposed', week: s.st.week }));
@@ -49,7 +80,7 @@ export function createSession({ dataDir, p = PARAMS } = {}) {
     need();
     if (s.phase !== 'proposed') throw new Error('propose first');
     s.tasks.forEach(t => { t.state = 'arbitrating'; });
-    const dec = decide(s.strategy, s.proposals, s.st, p);
+    const dec = decide(s.strategy, s.proposals, s.st, activeP);
     // decide() numbers proposals by agent in the same order as propose(), so ids line up
     const byId = new Map(dec.decisions.map(d => [d.id, d]));
     for (const t of s.tasks) {
@@ -75,8 +106,8 @@ export function createSession({ dataDir, p = PARAMS } = {}) {
       if (d.outcome !== 'rejected') t.state = 'executed';
     }
     for (const e of dec.executed) schedule(s.st, e);
-    const rec = step(s.st, { p });
-    s.lastRealized = realizedViolations(s.st, p);
+    const rec = step(s.st, { p: activeP });
+    s.lastRealized = realizedViolations(s.st, activeP);
     s.cycles++;
     appendAudit(dec, week);
     s.log.push({ week, proposed: s.tasks.length, executed: dec.executed.length, realized: s.lastRealized.map(v => v.constraint), record: { revenue: rec.revenue, stockout: rec.stockout, cash: s.st.cash } });
@@ -89,7 +120,7 @@ export function createSession({ dataDir, p = PARAMS } = {}) {
   function inject(type) {
     need();
     if (!SCENARIOS.includes(type) || type === 'baseline') throw new Error('unknown scenario: ' + type);
-    const evs = makeEvents(type, p).map(e => ({ ...e, week: s.st.week, ...(e.until ? { until: s.st.week + (e.until - p.scenarios.event_week) } : {}) }));
+    const evs = makeEvents(type, activeP).map(e => ({ ...e, week: s.st.week, ...(e.until ? { until: s.st.week + (e.until - activeP.scenarios.event_week) } : {}) }));
     s.st.events.push(...evs); s.injected.push({ week: s.st.week, type });
     return snapshot();
   }
@@ -112,12 +143,14 @@ export function createSession({ dataDir, p = PARAMS } = {}) {
 
   function snapshot() {
     need();
-    const m = metrics(s.st, p), st = s.st;
+    const m = metrics(s.st, activeP), st = s.st;
     return {
       session: s.id, week: st.week, seed: s.seed, scenario: s.scenario, strategy: s.strategy, strategyLabel: STRATEGY_LABEL[s.strategy], phase: s.phase, cycles: s.cycles,
+      mode: s.isLive ? 'live' : 'synthetic',
+      data_source: s.dataSource,
       metrics: { cash: m.cash, runway: m.runway, dso: m.dso, dpo: m.dpo, ccc: m.ccc, dio: m.dio },
       books: { ar: arTotal(st), ap: apTotal(st), inventory_units: st.inv.units, od_used: st.od.used, od_limit: st.od.limit, gst_payable: st.gstPayable },
-      constraints: p.constraints, realized_violations: s.lastRealized, injected: s.injected,
+      constraints: activeP.constraints, realized_violations: s.lastRealized, injected: s.injected,
       depts: s.stats, tasks: s.tasks.map(t => ({ id: t.id, dept: t.dept, agent: t.agent, action_type: t.action_type, label: t.decision?.label, amount_inr: t.amount_inr, amount_approved_inr: t.amount_approved_inr ?? null,
         timing_week: t.timing_week, cash_impact_inr: t.cash_impact_inr, confidence: t.confidence, rationale: t.rationale, state: t.state, outcome: t.outcome || null, blocked_by: t.blocked_by || [], reason: t.reason || null })),
       conflicts: s.decision?.conflicts || [], predicted_violations: (s.decision?.violations_predicted || []).map(v => v.constraint),
@@ -133,7 +166,7 @@ export function createSession({ dataDir, p = PARAMS } = {}) {
     jobs.set(id, job);
     (async () => {
       try {
-        const result = await runExperiment({ seeds: Math.min(+opts.seeds || 10, 200), scenarios: opts.scenarios?.length ? opts.scenarios : SCENARIOS, strategies: opts.strategies?.length ? opts.strategies : STRATEGIES, weeks: opts.weeks ? +opts.weeks : undefined,
+        const result = await runExperiment({ seeds: Math.min(+opts.seeds || 10, 200), scenarios: opts.scenarios?.length ? opts.scenarios : SCENARIOS, strategies: opts.strategies?.length ? opts.strategies : STRATEGIES, weeks: opts.weeks ? +opts.weeks : undefined, p: baseP,
           onProgress: (d, t) => { job.done = d; job.total = t; } });
         if (dataDir) writeResults(result, path.join(path.dirname(dataDir), 'results'));
         job.summary = { meta: { ...result.meta, params: undefined }, summary: result.summary, comparisons: result.comparisons };
@@ -143,13 +176,13 @@ export function createSession({ dataDir, p = PARAMS } = {}) {
     return { id };
   }
   const job = id => { const j = jobs.get(id); return j ? { ...j } : null; };
-  const latestResults = () => {
-    if (!dataDir) return null;
-    const f = path.join(path.dirname(dataDir), 'results', 'results.json');
-    if (!fs.existsSync(f)) return null;
-    const r = JSON.parse(fs.readFileSync(f, 'utf8'));
-    return { meta: { ...r.meta, params: undefined }, summary: r.summary, comparisons: r.comparisons };
-  };
 
-  return { reset, propose, arbitrate, execute, cycle, inject, snapshot, readAudit, startExperiment, job, latestResults, check: () => check([], need().st, p) };
+  function latestResults() {
+    try {
+      const f = path.join(path.dirname(dataDir || 'data'), 'results', 'results.json');
+      return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
+    } catch { return null; }
+  }
+
+  return { reset, propose, arbitrate, execute, cycle, inject, snapshot, readAudit, startExperiment, job, latestResults };
 }

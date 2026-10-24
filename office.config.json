@@ -1,4 +1,5 @@
 {
   "name": "Meridian Auto Components (MSME)",
-  "port": 4520
+  "port": 4520,
+  "live": true
 }

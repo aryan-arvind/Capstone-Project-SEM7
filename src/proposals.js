@@ -1,4 +1,4 @@
-// The proposals panel (right) and the live numbers. A task here is a proposal.
+﻿// The proposals panel (right) and the live numbers. A task here is a proposal.
 //
 //   PROPOSED -> UNDER ARBITRATION -> APPROVED / MODIFIED / REJECTED (or BLOCKED BY CONSTRAINT) -> EXECUTED
 //
@@ -12,7 +12,7 @@ import { money, moneyShort } from './v1data.js';
 const API = '/api/msme';
 const STATE_LABEL = { proposed: 'Proposed', arbitrating: 'Under arbitration', approved: 'Approved', modified: 'Modified', rejected: 'Rejected', blocked: 'Blocked by constraint', executed: 'Executed' };
 const CHIPS = [['all', 'All'], ['proposed', 'Proposed'], ['arbitrating', 'Under arbitration'], ['approved', 'Approved'], ['modified', 'Modified'], ['rejected', 'Rejected'], ['blocked', 'Blocked by constraint'], ['executed', 'Executed']];
-const ICON = { proposed: '📝', approved: '✓', modified: '✎', rejected: '✗', blocked: '⛔', executed: '▶' };
+const ICON = { proposed: 'ðŸ“', approved: 'âœ“', modified: 'âœŽ', rejected: 'âœ—', blocked: 'â›”', executed: 'â–¶' };
 const CONSTRAINT_NAME = { MIN_CASH_BUFFER: 'cash buffer', OD_LIMIT: 'overdraft limit', COVENANT_RATIO: 'covenant ratio', PAYMENT_TERM: '45-day rule', INVENTORY_CAPACITY: 'warehouse space' };
 const SCENARIOS = [['delayed_receivable', 'Delayed receivable'], ['supplier_price_spike', 'Supplier price spike'], ['demand_surge', 'Demand surge'], ['credit_limit_tightened', 'Tightened credit limit']];
 const STRATEGIES = [['constraint_aware', 'Arbiter'], ['priority_vote', 'Priority vote'], ['independent', 'No arbiter']];
@@ -33,7 +33,7 @@ export function initProposals(ctx) {
   const seen = new Map();   // id -> last state we announced on the desks
 
   el.strategy.innerHTML = STRATEGIES.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
-  el.inject.innerHTML = '<option value="">Inject a scenario…</option>' + SCENARIOS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+  el.inject.innerHTML = '<option value="">Inject a scenarioâ€¦</option>' + SCENARIOS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
 
   const say = (msg, kind = '') => { el.hint.className = 'tp-hint on ' + kind; el.hint.innerHTML = msg; };
   const quiet = () => { el.hint.className = 'tp-hint'; };
@@ -51,7 +51,7 @@ export function initProposals(ctx) {
     for (const t of s.tasks) rows.set(t.id, { ...(rows.get(t.id) || {}), ...t, week: parseInt(String(t.id).slice(1), 10), changedAt: Date.now() });
     el.strategy.value = s.strategy; if (document.activeElement !== el.seed) el.seed.value = s.seed;
     el.mode.hidden = false; el.mode.classList.add('live');
-    el.mode.textContent = `WEEK ${s.week} · ${s.scenario === 'baseline' ? 'BASELINE' : s.scenario.replace(/_/g, ' ').toUpperCase()}`;
+    el.mode.textContent = `WEEK ${s.week} Â· ${s.scenario === 'baseline' ? 'BASELINE' : s.scenario.replace(/_/g, ' ').toUpperCase()}${s.mode === 'live' ? ' Â· REAL OPENING BOOKS' : ''}`;
     drawTop(s); announce(s); render(); if (onSnapshot) onSnapshot(s);
   }
 
@@ -60,7 +60,7 @@ export function initProposals(ctx) {
     const cell = (l, v, cls = '') => `<span class="tm ${cls}"><i>${l}</i><b>${v}</b></span>`;
     top.innerHTML = cell('WEEK', s.week) + cell('CASH', moneyShort(m.cash), low ? 'bad' : '') + cell('RUNWAY', `${m.runway.toFixed(1)} wk`) + cell('DSO', `${m.dso.toFixed(0)} d`) + cell('DPO', `${m.dpo.toFixed(0)} d`) + cell('CCC', `${m.ccc.toFixed(0)} d`)
       + (s.realized_violations.length ? `<span class="tm bad" title="${esc(s.realized_violations.map(v => v.detail).join('\n'))}"><i>BREACH</i><b>${[...new Set(s.realized_violations.map(v => CONSTRAINT_NAME[v.constraint]))].join(', ')}</b></span>` : '');
-    top.title = `${s.strategyLabel} · seed ${s.seed} · overdraft ${moneyShort(s.books.od_used)} of ${moneyShort(s.books.od_limit)}`;
+    top.title = `${s.strategyLabel} Â· seed ${s.seed} Â· overdraft ${moneyShort(s.books.od_used)} of ${moneyShort(s.books.od_limit)}`;
   }
 
   // a desk reacts the moment a proposal changes status
@@ -78,11 +78,11 @@ export function initProposals(ctx) {
     }
     if (s.phase === 'arbitrated' || (s.phase === 'idle' && s.tasks.length)) {
       const key = 'w' + s.week + s.phase; if (seen.get('arb') === key) return; seen.set('arb', key);
-      if (s.conflicts.length) pushAgentEvent('arb_conflict', '⚔', `${s.conflicts.length} conflict${s.conflicts.length > 1 ? 's' : ''}: ${s.conflicts[0].detail}`);
+      if (s.conflicts.length) pushAgentEvent('arb_conflict', 'âš”', `${s.conflicts.length} conflict${s.conflicts.length > 1 ? 's' : ''}: ${s.conflicts[0].detail}`);
       const caught = s.tasks.filter(t => t.blocked_by?.length).length;
-      pushAgentEvent('arb_constraint', '⛨', caught ? `${caught} proposal${caught > 1 ? 's' : ''} stopped by a constraint` : 'All constraints hold for the chosen set');
-      if (s.tasks.some(t => t.reason)) pushAgentEvent('arb_explain', '✍', `Wrote ${s.tasks.filter(t => t.reason).length} reasons`);
-      pushAgentEvent('arbiter_agent', '⚖', `${s.tasks.filter(t => t.outcome === 'approved').length} approved, ${s.tasks.filter(t => t.outcome === 'modified').length} modified, ${s.tasks.filter(t => t.outcome === 'rejected').length} rejected`);
+      pushAgentEvent('arb_constraint', 'â›¨', caught ? `${caught} proposal${caught > 1 ? 's' : ''} stopped by a constraint` : 'All constraints hold for the chosen set');
+      if (s.tasks.some(t => t.reason)) pushAgentEvent('arb_explain', 'âœ', `Wrote ${s.tasks.filter(t => t.reason).length} reasons`);
+      pushAgentEvent('arbiter_agent', 'âš–', `${s.tasks.filter(t => t.outcome === 'approved').length} approved, ${s.tasks.filter(t => t.outcome === 'modified').length} modified, ${s.tasks.filter(t => t.outcome === 'rejected').length} rejected`);
     }
   }
 
@@ -100,15 +100,15 @@ export function initProposals(ctx) {
     const checks = open === t.id && t.blocked_by ? `<div class="pp-why">${esc(t.rationale)}</div>` : '';
     return `<div class="tp-row pr ${t.state}" data-id="${t.id}" data-agent="${t.agent}">
       <span class="tp-st ${t.state}">${STATE_LABEL[t.state]}</span>
-      <div class="tp-body"><div class="tp-t">${esc(t.label || nm(t.action_type))} · ${approved}</div>
-        <div class="tp-m">${esc(a ? a.name : t.agent)} · week ${t.timing_week} · conf ${Math.round(t.confidence * 100)}% · claims ${money(t.cash_impact_inr)}</div>${open === t.id || t.state === 'blocked' ? why + checks : ''}</div>
+      <div class="tp-body"><div class="tp-t">${esc(t.label || nm(t.action_type))} Â· ${approved}</div>
+        <div class="tp-m">${esc(a ? a.name : t.agent)} Â· week ${t.timing_week} Â· conf ${Math.round(t.confidence * 100)}% Â· claims ${money(t.cash_impact_inr)}</div>${open === t.id || t.state === 'blocked' ? why + checks : ''}</div>
       <span class="tp-ago">${ago(t)}</span></div>`;
   }
   function render() {
     el.scope.textContent = scope ? DEPTS[scope].name : 'WHOLE COMPANY';
     el.chips.innerHTML = chipsHTML();
     const l = list();
-    el.rows.innerHTML = l.length ? l.map(rowHTML).join('') : `<div class="tp-empty">${snap ? 'No proposals yet. Run a decision cycle.' : 'Connecting to the engine…'}</div>`;
+    el.rows.innerHTML = l.length ? l.map(rowHTML).join('') : `<div class="tp-empty">${snap ? 'No proposals yet. Run a decision cycle.' : 'Connecting to the engineâ€¦'}</div>`;
   }
   el.chips.addEventListener('click', e => { const b = e.target.closest('.tp-chip'); if (b) { filter = b.dataset.f; render(); } });
   el.rows.addEventListener('click', e => {
@@ -131,7 +131,7 @@ export function initProposals(ctx) {
       say('<b>Proposing</b>', 'busy');
       apply(await call('propose', {}));
       await pause(700);
-      say('<b>Under arbitration</b> — checking the proposals against the constraints', 'busy');
+      say('<b>Under arbitration</b> â€” checking the proposals against the constraints', 'busy');
       apply(await call('arbitrate', {}));
       await pause(900);
       say('<b>Executing</b> the approved actions and advancing the week', 'busy');
@@ -166,7 +166,7 @@ export function initProposals(ctx) {
     if (!a.lead) return `${a.does} I am a desk inside ${DEPTS[a.dept].short} and make no model call of my own; ask ${ROSTER.departments.find(d => d.key === a.dept).agent.name} about the proposals.`;
     if (!mine.length) return 'I have not proposed anything yet. Press RUN DECISION CYCLE.';
     const lastWeek = mine[0].week, cur = mine.filter(t => t.week === lastWeek);
-    const line = t => `• ${nm(t.action_type)} ${money(t.amount_inr)} → ${STATE_LABEL[t.state].toLowerCase()}${t.state === 'modified' ? ` (${money(t.amount_approved_inr)})` : ''}`;
+    const line = t => `â€¢ ${nm(t.action_type)} ${money(t.amount_inr)} â†’ ${STATE_LABEL[t.state].toLowerCase()}${t.state === 'modified' ? ` (${money(t.amount_approved_inr)})` : ''}`;
     if (/why|reject|block|modif|reason/i.test(text)) {
       const no = cur.filter(t => t.state !== 'approved' && t.state !== 'executed' || t.reason);
       return no.length ? no.map(t => `${line(t)}\n   ${t.reason || t.rationale}`).join('\n') : 'Everything I proposed this week went through as asked.';
@@ -191,3 +191,4 @@ export function initProposals(ctx) {
     snapshot: () => snap, run: runCycle, apply,
   };
 }
+
