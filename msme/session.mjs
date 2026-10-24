@@ -15,6 +15,7 @@ import { arTotal, apTotal } from './books.mjs';
 import { DEPARTMENTS, DECISION_DEPTS } from './roster.mjs';
 import { runExperiment, writeResults } from './run.mjs';
 import { initStateFromLedger } from './live.mjs';
+import { proposeAllWithLLM, arbitrateWithLLM } from './llm_agents.mjs';
 
 const blankStats = () => Object.fromEntries(DEPARTMENTS.map(d => [d.key, { proposed: 0, accepted: 0, modified: 0, rejected: 0, violations: 0, cashImpact: 0 }]));
 
@@ -64,28 +65,48 @@ export function createSession({ dataDir, p = PARAMS, live: defaultLive = false }
 
   const status = d => d.outcome === 'approved' ? 'approved' : d.outcome === 'modified' ? 'modified' : d.blocked_by?.length ? 'blocked' : 'rejected';
 
-  async function propose() {
+  async function propose(opts = {}) {
     need();
     if (s.phase === 'proposed' || s.phase === 'arbitrated') throw new Error('this cycle is already under way: finish it first');
-    const r = proposeAll({ state: s.st, p: activeP, seed: s.seed });
+    const r = await proposeAllWithLLM({
+      state: s.st,
+      p: activeP,
+      seed: s.seed,
+      lastDecisions: s.decision?.decisions || [],
+      scenarioText: s.scenario,
+      mockHandler: opts.mockLLMHandler || null,
+    });
     s.failures = r.failures;
     s.proposals = r.proposals;
-    s.tasks = r.proposals.map((pr, i) => ({ ...pr, id: `w${s.st.week}-${pr.agent}-${r.proposals.slice(0, i).filter(x => x.agent === pr.agent).length + 1}`, dept: DECISION_DEPTS.find(d => d.agent.id === pr.agent)?.key, state: 'proposed', week: s.st.week }));
+    s.tasks = r.proposals.map((pr, i) => ({
+      ...pr,
+      id: `w${s.st.week}-${pr.agent}-${r.proposals.slice(0, i).filter(x => x.agent === pr.agent).length + 1}`,
+      dept: DECISION_DEPTS.find(d => d.agent.id === pr.agent)?.key,
+      state: 'proposed',
+      week: s.st.week,
+      source: pr.source || 'rule-fallback',
+    }));
     for (const t of s.tasks) s.stats[t.dept].proposed++;
     s.decision = null; s.phase = 'proposed';
     return snapshot();
   }
 
-  async function arbitrate() {
+  async function arbitrate(opts = {}) {
     need();
     if (s.phase !== 'proposed') throw new Error('propose first');
     s.tasks.forEach(t => { t.state = 'arbitrating'; });
-    const dec = decide(s.strategy, s.proposals, s.st, activeP);
-    // decide() numbers proposals by agent in the same order as propose(), so ids line up
+    let dec = null;
+    if (s.strategy === 'constraint_aware') {
+      dec = await arbitrateWithLLM(s.proposals, s.st, activeP, { mockHandler: opts.mockLLMHandler || null });
+    }
+    if (!dec) {
+      dec = decide(s.strategy, s.proposals, s.st, activeP);
+    }
     const byId = new Map(dec.decisions.map(d => [d.id, d]));
     for (const t of s.tasks) {
       const d = byId.get(t.id); if (!d) continue;
       t.state = status(d); t.decision = d; t.amount_approved_inr = d.amount_approved_inr; t.reason = d.reason; t.outcome = d.outcome; t.blocked_by = d.blocked_by;
+      t.source = d.source || t.source || 'rule-fallback';
     }
     s.decision = dec; s.phase = 'arbitrated';
     return snapshot();
@@ -130,7 +151,7 @@ export function createSession({ dataDir, p = PARAMS, live: defaultLive = false }
     try {
       fs.mkdirSync(path.dirname(auditFile), { recursive: true });
       const meta = { ts: new Date().toISOString(), session: s.id, seed: s.seed, scenario: s.scenario, strategy: s.strategy, week };
-      const lines = dec.decisions.map(d => JSON.stringify({ ...meta, ...d, set_violations_before: dec.violations_before?.map(v => v.constraint) || [], set_violations_after: (dec.violations_predicted || dec.violations_after || []).map(v => v.constraint) }));
+      const lines = dec.decisions.map(d => JSON.stringify({ ...meta, ...d, source: d.source || dec.source || 'rule-fallback', set_violations_before: dec.violations_before?.map(v => v.constraint) || [], set_violations_after: (dec.violations_predicted || dec.violations_after || []).map(v => v.constraint) }));
       fs.appendFileSync(auditFile, lines.join('\n') + '\n');
     } catch { /* the audit file is best-effort on disk; the in-memory log below still holds it */ }
   }
@@ -152,7 +173,7 @@ export function createSession({ dataDir, p = PARAMS, live: defaultLive = false }
       books: { ar: arTotal(st), ap: apTotal(st), inventory_units: st.inv.units, od_used: st.od.used, od_limit: st.od.limit, gst_payable: st.gstPayable },
       constraints: activeP.constraints, realized_violations: s.lastRealized, injected: s.injected,
       depts: s.stats, tasks: s.tasks.map(t => ({ id: t.id, dept: t.dept, agent: t.agent, action_type: t.action_type, label: t.decision?.label, amount_inr: t.amount_inr, amount_approved_inr: t.amount_approved_inr ?? null,
-        timing_week: t.timing_week, cash_impact_inr: t.cash_impact_inr, confidence: t.confidence, rationale: t.rationale, state: t.state, outcome: t.outcome || null, blocked_by: t.blocked_by || [], reason: t.reason || null })),
+        timing_week: t.timing_week, cash_impact_inr: t.cash_impact_inr, confidence: t.confidence, rationale: t.rationale, state: t.state, outcome: t.outcome || null, blocked_by: t.blocked_by || [], reason: t.reason || null, source: t.source || 'rule-fallback' })),
       conflicts: s.decision?.conflicts || [], predicted_violations: (s.decision?.violations_predicted || []).map(v => v.constraint),
       schema_failures: s.failures,
       log: s.log.slice(-20),

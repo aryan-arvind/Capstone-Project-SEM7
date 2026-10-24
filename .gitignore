@@ -8,3 +8,6 @@ brain/Agents Office/
 .DS_Store
 *.backup-*
 results/
+
+.env
+.env.*
