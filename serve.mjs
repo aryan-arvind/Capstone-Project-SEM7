@@ -5,6 +5,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { loadConfig, ROOT } from './config.mjs';
 import { createSession } from './msme/session.mjs';
 import { DEPARTMENTS } from './msme/roster.mjs';
@@ -54,6 +55,60 @@ const server = http.createServer(async (req, res) => {
       if (op === 'experiments') return json(res, 200, session.startExperiment(b));
       if (op === 'ledger/save') return json(res, 200, session.saveLedger(b));
       if (op === 'decision/override') return json(res, 200, session.overrideDecision(b));
+      if (op === 'digitize/parse') {
+        const uploadsDir = path.join(DATA, 'uploads');
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        const filename = b.filename || 'uploaded_doc.txt';
+        const filePath = path.join(uploadsDir, filename);
+        if (b.contentBase64) {
+          fs.writeFileSync(filePath, Buffer.from(b.contentBase64, 'base64'));
+        } else {
+          fs.writeFileSync(filePath, b.content || '', 'utf8');
+        }
+        const result = await new Promise((resolve, reject) => {
+          const py = spawn('python', ['ingestion/digitize_cli.py', 'parse', '--file', filePath], { cwd: ROOT });
+          let stdout = '';
+          let stderr = '';
+          py.stdout.on('data', d => { stdout += d.toString(); });
+          py.stderr.on('data', d => { stderr += d.toString(); });
+          py.on('close', code => {
+            try {
+              resolve(JSON.parse(stdout));
+            } catch (err) {
+              if (code !== 0) reject(new Error(stderr || `Python digitizer failed with code ${code}`));
+              else resolve({ success: false, raw: stdout, error: stderr });
+            }
+          });
+          py.on('error', err => reject(err));
+        });
+        return json(res, 200, result);
+      }
+      if (op === 'digitize/commit') {
+        const uploadsDir = path.join(DATA, 'uploads');
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        const payloadPath = path.join(uploadsDir, 'commit_payload.json');
+        fs.writeFileSync(payloadPath, JSON.stringify(b, null, 2), 'utf8');
+        const result = await new Promise((resolve, reject) => {
+          const py = spawn('python', ['ingestion/digitize_cli.py', 'commit', '--file', payloadPath], { cwd: ROOT });
+          let stdout = '';
+          let stderr = '';
+          py.stdout.on('data', d => { stdout += d.toString(); });
+          py.stderr.on('data', d => { stderr += d.toString(); });
+          py.on('close', code => {
+            try {
+              resolve(JSON.parse(stdout));
+            } catch (err) {
+              if (code !== 0) reject(new Error(stderr || `Python commit failed with code ${code}`));
+              else resolve({ success: false, raw: stdout, error: stderr });
+            }
+          });
+          py.on('error', err => reject(err));
+        });
+        session.reset({ live: true });
+        result.live_ledger = session.getLedger ? session.getLedger() : null;
+        return json(res, 200, result);
+      }
+
       return json(res, 404, { error: 'unknown msme endpoint' });
     } catch (e) { return json(res, 400, { error: e.message }); }
   } catch (e) { json(res, 500, { error: e.message }); }

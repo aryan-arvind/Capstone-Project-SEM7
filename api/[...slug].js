@@ -76,6 +76,11 @@ export default async function handler(req, res) {
       if (op === 'cycle') return sendJson(res, 200, await session.cycle());
       if (op === 'inject') return sendJson(res, 200, session.inject(b.type));
       if (op === 'experiments') return sendJson(res, 200, session.startExperiment(b));
+      if (op === 'ledger/save') return sendJson(res, 200, session.saveLedger(b));
+            if (op === 'digitize/parse' || op === 'digitize/commit') {
+        return sendJson(res, 200, { success: false, error: 'Document Digitizer OCR runs locally via child_process Python engine (not supported on serverless cloud).' });
+      }
+      if (op === 'decision/override') return sendJson(res, 200, session.overrideDecision(b));
       return sendJson(res, 404, { error: 'unknown msme endpoint: ' + op });
     } catch (e) {
       return sendJson(res, 400, { error: e.message });

@@ -209,3 +209,30 @@ data/, results/  generated at run time (git-ignored): audit.jsonl, results.csv /
 The 3D office front end is derived from **Agents Office by Sahni.ai**, used under its licence (PolyForm Noncommercial
 1.0.0 plus Sahni.ai's additional terms, in [LICENSE](LICENSE)). This repository is non-commercial coursework. The roster, simulator, proposal schema, constraint layer, Arbiter,
 baselines, experiment runner, audit views and this documentation are new work for the capstone.
+
+
+## Document Digitizer (Local-Only Integration)
+
+The Document Digitizer parses raw SME bills, invoices (TXT, PDF, PNG/JPEG), and inventory spreadsheets (CSV). It utilizes a 4-step cascade with fuzzy column mapping, GSTIN/tax normalization, and receipt arithmetic verification. Validated documents are staged into SQLite (`data/sme_digitalized_data.db`) and synchronized with the live ledger forward simulation.
+
+> **Note:** The Digitizer is local-only (runs locally via Node `child_process` spawning Python; not on Render / serverless hosting).
+
+### Python Dependencies & Setup
+
+Install the required Python packages for structured table extraction and parsing:
+
+```bash
+pip install pydantic python-dateutil
+```
+
+For multimodal scanned document & image OCR (optional):
+
+```bash
+pip install opencv-python pillow easyocr pytesseract pdf2image
+```
+
+Run test verification of the digitizer pipeline:
+```bash
+python ingestion/digitize_cli.py parse --file data/sample_documents/b2b_purchase_order.txt
+python ingestion/digitize_cli.py parse --file data/sample_documents/messy_sme_inventory.csv
+```

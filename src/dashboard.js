@@ -6,6 +6,15 @@ let activeTab = 'overview';
 let currentSnapshot = null;
 let currentLedger = null;
 let switchViewCallback = null;
+let digitizeState = {
+  loading: false,
+  docType: 'INVOICE',
+  filename: '',
+  columns: [],
+  rows: [],
+  error: null,
+  successMsg: null
+};
 
 const inr = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -74,6 +83,10 @@ function renderActiveTab() {
     case 'scenarios':
       body.innerHTML = renderScenarios();
       attachScenarioEvents();
+      break;
+    case 'digitize':
+      body.innerHTML = renderDigitize();
+      attachDigitizeEvents();
       break;
   }
 }
@@ -445,4 +458,266 @@ async function saveLedgerChanges() {
   } catch (e) {
     alert('Error saving ledger: ' + e.message);
   }
+}
+
+
+function renderDigitize() {
+  const isBusy = digitizeState.loading;
+  const hasData = digitizeState.rows && digitizeState.rows.length > 0;
+
+  return `
+    <div class="cd-section">
+      <div class="cd-head">
+        <h2>Document Digitizer & Verification (Python Cascade)</h2>
+        <span class="cd-pill ${digitizeState.docType === 'INVOICE' ? 'live' : ''}">
+          ${digitizeState.docType || 'READY'}
+        </span>
+      </div>
+      <p style="color:var(--grey);font-size:13px;margin:4px 0 16px 0;">
+        Upload B2B invoices (TXT, PDF, PNG/JPG) or inventory logs (CSV). The Python backend extracts structured tables,
+        applies column header fuzzy matching, normalizes GSTIN/tax fields, and validates receipt arithmetic.
+      </p>
+
+      <div class="cd-card" style="margin-bottom:16px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--ink);">Quick Test with Sample SME Documents:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="btnSampleB2B" class="cd-btn" ${isBusy ? 'disabled' : ''}>📄 B2B Invoice (Dell/Fastener PO)</button>
+          <button id="btnSampleInv" class="cd-btn" ${isBusy ? 'disabled' : ''}>📊 SME Inventory (Messy CSV)</button>
+          <button id="btnSampleBill" class="cd-btn" ${isBusy ? 'disabled' : ''}>🧾 Restaurant Receipt (Scan Text)</button>
+        </div>
+      </div>
+
+      <div class="cd-card" style="margin-bottom:16px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--ink);">Upload Document:</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <input type="file" id="digFileInput" accept=".txt,.csv,.json,.pdf,.png,.jpg,.jpeg" style="font-family:var(--ui);font-size:12px;">
+          <button id="btnParseUploaded" class="cd-btn primary" ${isBusy ? 'disabled' : ''}>
+            ${isBusy ? '⏳ Processing via Python...' : '⚡ Run Digitizer / OCR'}
+          </button>
+        </div>
+        ${digitizeState.error ? `<div style="color:#d9534f;font-size:12px;margin-top:8px;">⚠️ ${esc(digitizeState.error)}</div>` : ''}
+        ${digitizeState.successMsg ? `<div style="color:#28a745;font-weight:600;font-size:12px;margin-top:8px;">✓ ${esc(digitizeState.successMsg)}</div>` : ''}
+      </div>
+
+      ${hasData ? `
+        <div class="cd-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div>
+              <span style="font-weight:600;font-size:14px;color:var(--ink);">Extracted & Verified Records</span>
+              <span style="color:var(--grey);font-size:12px;margin-left:8px;">Source: ${esc(digitizeState.filename)} (${digitizeState.rows.length} rows)</span>
+            </div>
+            <button id="btnAddDigitizeRow" class="cd-btn" style="font-size:11px;">+ Add Line Item</button>
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table class="cd-table" id="digReviewTable">
+              <thead>
+                <tr>
+                  ${digitizeState.columns.map(c => `<th>${esc(c.toUpperCase().replace(/_/g, ' '))}</th>`).join('')}
+                  <th style="width:40px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${digitizeState.rows.map((row, idx) => `
+                  <tr data-idx="${idx}">
+                    ${digitizeState.columns.map(col => `
+                      <td>
+                        <input class="dig-cell" data-idx="${idx}" data-col="${col}"
+                               value="${esc(row[col] ?? '')}"
+                               style="width:100%;background:transparent;border:1px solid transparent;font-family:inherit;font-size:12px;padding:3px;color:inherit;"
+                               onfocus="this.style.borderColor='var(--hairline)'" onblur="this.style.borderColor='transparent'">
+                      </td>
+                    `).join('')}
+                    <td><button class="cd-del-btn btn-del-dig" data-idx="${idx}">✕</button></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:12px;color:var(--grey);">
+              Review and edit values above, then commit to persist to SQLite (<code>sme_digitalized_data.db</code>).
+            </div>
+            <button id="btnCommitDigitized" class="cd-btn primary" style="background:#28a745;color:#fff;font-weight:600;padding:8px 18px;">
+              💾 COMMIT TO BOOKS & REFRESH LEDGER
+            </button>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function attachDigitizeEvents() {
+  const parseBtn = document.getElementById('btnParseUploaded');
+  const fileInput = document.getElementById('digFileInput');
+
+  // Sample document buttons
+  document.getElementById('btnSampleB2B')?.addEventListener('click', async () => {
+    runParseForSample('data/sample_documents/b2b_purchase_order.txt', 'b2b_purchase_order.txt');
+  });
+  document.getElementById('btnSampleInv')?.addEventListener('click', async () => {
+    runParseForSample('data/sample_documents/messy_sme_inventory.csv', 'messy_sme_inventory.csv');
+  });
+  document.getElementById('btnSampleBill')?.addEventListener('click', async () => {
+    runParseForSample('data/sample_documents/restaurant_bill_sample.txt', 'restaurant_bill_sample.txt');
+  });
+
+  // Uploaded file parse
+  parseBtn?.addEventListener('click', () => {
+    if (!fileInput?.files?.length) return alert('Please select a file to digitize');
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    digitizeState.loading = true;
+    digitizeState.error = null;
+    digitizeState.successMsg = null;
+    renderActiveTab();
+
+    if (file.name.match(/\.(txt|csv|json)$/i)) {
+      reader.onload = async () => {
+        try {
+          const res = await fetch('/api/msme/digitize/parse', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, content: reader.result })
+          });
+          const data = await res.json();
+          handleParseResponse(data, file.name);
+        } catch (err) {
+          digitizeState.loading = false;
+          digitizeState.error = err.message;
+          renderActiveTab();
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      // Binary (PDF / Image) -> Base64
+      reader.onload = async () => {
+        try {
+          const base64 = reader.result.split(',')[1];
+          const res = await fetch('/api/msme/digitize/parse', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, contentBase64: base64 })
+          });
+          const data = await res.json();
+          handleParseResponse(data, file.name);
+        } catch (err) {
+          digitizeState.loading = false;
+          digitizeState.error = err.message;
+          renderActiveTab();
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Table cell inputs change listener
+  document.querySelectorAll('.dig-cell').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const idx = +e.target.dataset.idx;
+      const col = e.target.dataset.col;
+      if (digitizeState.rows[idx]) {
+        let val = e.target.value;
+        if (col.includes('stock') || col.includes('cost') || col.includes('amount') || col.includes('total') || col.includes('subtotal')) {
+          const num = parseFloat(val);
+          if (!isNaN(num)) val = num;
+        }
+        digitizeState.rows[idx][col] = val;
+      }
+    });
+  });
+
+  // Delete row
+  document.querySelectorAll('.btn-del-dig').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = +e.target.dataset.idx;
+      digitizeState.rows.splice(idx, 1);
+      renderActiveTab();
+    });
+  });
+
+  // Add row
+  document.getElementById('btnAddDigitizeRow')?.addEventListener('click', () => {
+    const blank = {};
+    digitizeState.columns.forEach(c => blank[c] = '');
+    digitizeState.rows.push(blank);
+    renderActiveTab();
+  });
+
+  // Commit to books
+  document.getElementById('btnCommitDigitized')?.addEventListener('click', async () => {
+    if (!digitizeState.rows.length) return alert('No rows to commit');
+    try {
+      const btn = document.getElementById('btnCommitDigitized');
+      if (btn) btn.disabled = true;
+
+      const res = await fetch('/api/msme/digitize/commit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          doc_type: digitizeState.docType,
+          rows: digitizeState.rows
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert('Commit error: ' + (data.error || 'Failed to commit records'));
+      } else {
+        digitizeState.successMsg = data.message;
+        digitizeState.rows = [];
+        await fetchLedger();
+        const stateRes = await (await fetch('/api/msme/state')).json();
+        updateDashboardState(stateRes);
+        renderActiveTab();
+        alert('✓ ' + data.message);
+      }
+    } catch (e) {
+      alert('Error committing to books: ' + e.message);
+    }
+  });
+}
+
+async function runParseForSample(relPath, sampleName) {
+  try {
+    digitizeState.loading = true;
+    digitizeState.error = null;
+    digitizeState.successMsg = null;
+    renderActiveTab();
+
+    const sampleRes = await fetch('/' + relPath + '?t=' + Date.now());
+    let content = '';
+    if (sampleRes.ok) {
+      content = await sampleRes.text();
+    }
+    const res = await fetch('/api/msme/digitize/parse', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ filename: sampleName, content })
+    });
+    const data = await res.json();
+    handleParseResponse(data, sampleName);
+  } catch (err) {
+    digitizeState.loading = false;
+    digitizeState.error = err.message;
+    renderActiveTab();
+  }
+}
+
+function handleParseResponse(data, fallbackName) {
+  digitizeState.loading = false;
+  if (!data.success) {
+    digitizeState.error = data.error || 'Failed to parse document';
+    renderActiveTab();
+    return;
+  }
+  digitizeState.docType = data.doc_type || 'INVOICE';
+  digitizeState.filename = data.filename || fallbackName;
+  digitizeState.columns = data.columns || Object.keys(data.rows?.[0] || {});
+  digitizeState.rows = data.rows || [];
+  digitizeState.error = null;
+  digitizeState.successMsg = `Successfully parsed ${digitizeState.rows.length} records from ${digitizeState.filename}.`;
+  renderActiveTab();
 }
