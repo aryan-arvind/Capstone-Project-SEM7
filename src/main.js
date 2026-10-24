@@ -1,3 +1,4 @@
+import { initDashboard, updateDashboardState } from './dashboard.js';
 // Agents Office v2 — Three.js isometric office with zoom-driven LOD
 // Far: clean pods + agent counts (Image 1 read). Near: diorama with 3D people + holo screens (Image 2 read).
 import * as THREE from 'three';
@@ -1153,10 +1154,44 @@ function applyRoster(agents) {
   }
   if (tasks && tasks.syncPills) tasks.syncPills(); // the pills were rebuilt — put the clock chips back
 }
-tasks = initProposals({ R, getFocused: () => focused, enterFocus, pushAgentEvent, openAgent, onSnapshot: () => updateBillboards() });
+tasks = initProposals({ R, getFocused: () => focused, enterFocus, pushAgentEvent, openAgent, onSnapshot: (s) => { updateBillboards(); updateDashboardState(s); } });
 const audit = initAudit(), experiments = initExperiments();
 brain.onOpen(() => audit.open()); // clicking the Arbiter's floor opens the audit log
 tasks.refresh();
+
+// Phase B View Switching: Dashboard vs 3D Office
+const dashEl = document.getElementById('clientDashboard');
+const tpanelEl = document.getElementById('tpanel');
+const sceneEl = document.getElementById('scene');
+const btnViewDash = document.getElementById('viewBtnDash');
+const btnViewOffice = document.getElementById('viewBtnOffice');
+
+function switchView(mode) {
+  if (mode === 'office') {
+    btnViewOffice?.classList.add('on');
+    btnViewDash?.classList.remove('on');
+    dashEl?.classList.add('hide');
+    tpanelEl?.classList.remove('hide');
+    if (sceneEl) sceneEl.style.pointerEvents = 'auto';
+  } else {
+    btnViewDash?.classList.add('on');
+    btnViewOffice?.classList.remove('on');
+    dashEl?.classList.remove('hide');
+    tpanelEl?.classList.add('hide');
+    if (sceneEl) sceneEl.style.pointerEvents = 'none';
+  }
+}
+
+btnViewDash?.addEventListener('click', () => switchView('dashboard'));
+btnViewOffice?.addEventListener('click', () => switchView('office'));
+
+initDashboard({
+  onRunCycle: () => tasks.runCycle(),
+  onSwitchView: (mode) => switchView(mode)
+});
+// Default to DASHBOARD view
+switchView('dashboard');
+
 view.target.set(...overviewPos());
 addEventListener('resize', () => { if (!focused && !tween) view.target.set(...overviewPos()); });
 

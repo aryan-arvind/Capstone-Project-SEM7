@@ -205,5 +205,60 @@ export function createSession({ dataDir, p = PARAMS, live: defaultLive = false }
     } catch { return null; }
   }
 
-  return { reset, propose, arbitrate, execute, cycle, inject, snapshot, readAudit, startExperiment, job, latestResults };
+    function overrideDecision({ id, outcome, amount }) {
+    need();
+    const t = s.tasks.find(x => x.id === id);
+    if (!t) throw new Error('Task not found: ' + id);
+    const validOutcome = ['approved', 'rejected', 'modified'].includes(outcome) ? outcome : 'approved';
+    t.state = validOutcome;
+    if (t.decision) {
+      t.decision.outcome = validOutcome;
+      if (validOutcome === 'approved') t.decision.amount_approved_inr = t.amount_inr;
+      else if (validOutcome === 'rejected') t.decision.amount_approved_inr = 0;
+      else if (validOutcome === 'modified' && amount) t.decision.amount_approved_inr = Math.round(Number(amount));
+      t.decision.reason = `Human decision override: marked as ${validOutcome}`;
+      t.amount_approved_inr = t.decision.amount_approved_inr;
+      t.reason = t.decision.reason;
+    }
+    return snapshot();
+  }
+
+  function saveLedger(payload) {
+    if (!ledgerFile) throw new Error('No data directory configured');
+    const { validateLedger } = await_or_import_live();
+    validateLedger(payload);
+    fs.writeFileSync(ledgerFile, JSON.stringify(payload, null, 2), 'utf8');
+
+    // Also sync to business_profile.json
+    const profPath = path.join(path.dirname(ledgerFile), 'business_profile.json');
+    if (fs.existsSync(profPath)) {
+      try {
+        const prof = JSON.parse(fs.readFileSync(profPath, 'utf8'));
+        prof.cash = payload.cash;
+        prof.od_limit = payload.od_limit;
+        prof.od_used = payload.od_used;
+        prof.gst_payable = payload.gst_payable;
+        prof.receivables = payload.ar;
+        fs.writeFileSync(profPath, JSON.stringify(prof, null, 2), 'utf8');
+      } catch {}
+    }
+
+    // Reload live state
+    return reset({ seed: s ? s.seed : 1, scenario: s ? s.scenario : 'baseline', strategy: s ? s.strategy : 'constraint_aware', live: true });
+  }
+
+  function await_or_import_live() {
+    // Synchronous validator helper from live.mjs
+    return {
+      validateLedger: (ledger) => {
+        if (!ledger || typeof ledger !== 'object') throw new Error('Ledger must be an object');
+        if (typeof ledger.cash !== 'number' || ledger.cash < 0) throw new Error('Cash must be non-negative');
+        if (typeof ledger.od_limit !== 'number' || ledger.od_limit < 0) throw new Error('OD limit must be non-negative');
+        if (!Array.isArray(ledger.ap) || !Array.isArray(ledger.ar)) throw new Error('AP and AR must be arrays');
+        return true;
+      }
+    };
+  }
+
+  return { reset, propose, arbitrate, execute, cycle, inject, snapshot, readAudit, startExperiment, job, latestResults, overrideDecision, saveLedger };
 }

@@ -15,7 +15,7 @@ const HTML = path.join(ROOT, 'dist', 'command-centre-v2.html');
 const version = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch { return '?'; } })();
 const session = createSession({ dataDir: DATA, live: cfg.live });
 
-const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
+const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(body)); };
 const readBody = req => new Promise((resolve, reject) => { let s = ''; req.on('data', d => { s += d; }); req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } }); });
 
 const server = http.createServer(async (req, res) => {
@@ -52,6 +52,8 @@ const server = http.createServer(async (req, res) => {
       if (op === 'cycle') return json(res, 200, await session.cycle());
       if (op === 'inject') return json(res, 200, session.inject(b.type));
       if (op === 'experiments') return json(res, 200, session.startExperiment(b));
+      if (op === 'ledger/save') return json(res, 200, session.saveLedger(b));
+      if (op === 'decision/override') return json(res, 200, session.overrideDecision(b));
       return json(res, 404, { error: 'unknown msme endpoint' });
     } catch (e) { return json(res, 400, { error: e.message }); }
   } catch (e) { json(res, 500, { error: e.message }); }
