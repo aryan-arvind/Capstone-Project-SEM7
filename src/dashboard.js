@@ -1,11 +1,16 @@
 // Client Dashboard view: Overview KPIs, Editable AR/AP/Inventory tables,
-// Human-in-the-loop Agent Decisions with source badges, and Scenario box.
+// Human-in-the-loop Agent Decisions with source badges, Free-text Scenarios,
+// Chat with Finance Team, Real Client Actions, and Digitizer integration.
 import { money } from './v1data.js';
 
 let activeTab = 'overview';
 let currentSnapshot = null;
 let currentLedger = null;
 let switchViewCallback = null;
+let llmStatus = { mode: 'off', last_provider: 'rule-fallback', fallback_count: 0 };
+let chatHistory = [];
+let isChatBusy = false;
+
 let digitizeState = {
   loading: false,
   docType: 'INVOICE',
@@ -34,7 +39,7 @@ export function initDashboard({ onRunCycle, onSwitchView }) {
     });
   });
 
-  // Fetch initial ledger
+  fetchLLMStatus();
   fetchLedger();
 }
 
@@ -43,7 +48,31 @@ export function updateDashboardState(snap) {
   if (!currentLedger && snap) {
     fetchLedger();
   }
+  fetchLLMStatus();
   renderActiveTab();
+}
+
+async function fetchLLMStatus() {
+  try {
+    const res = await fetch('/api/msme/llm-status?t=' + Date.now());
+    if (res.ok) {
+      llmStatus = await res.json();
+      updateLLMBadge();
+    }
+  } catch {}
+}
+
+function updateLLMBadge() {
+  const badge = document.getElementById('dashLLMBadge');
+  if (badge) {
+    if (llmStatus.mode === 'on') {
+      badge.textContent = `LLM ON (${llmStatus.last_provider || 'groq'})`;
+      badge.className = 'cd-pill live';
+    } else {
+      badge.textContent = 'LLM OFF - rule fallback';
+      badge.className = 'cd-pill';
+    }
+  }
 }
 
 async function fetchLedger() {
@@ -63,6 +92,7 @@ function renderActiveTab() {
   switch (activeTab) {
     case 'overview':
       body.innerHTML = renderOverview();
+      attachOverviewEvents();
       break;
     case 'ar':
       body.innerHTML = renderARTable();
@@ -84,24 +114,33 @@ function renderActiveTab() {
       body.innerHTML = renderScenarios();
       attachScenarioEvents();
       break;
+    case 'chat':
+      body.innerHTML = renderChat();
+      attachChatEvents();
+      break;
     case 'digitize':
       body.innerHTML = renderDigitize();
       attachDigitizeEvents();
       break;
   }
+  updateLLMBadge();
 }
 
 function renderOverview() {
   const m = currentSnapshot?.metrics || { cash: 0, runway: 0, dso: 0, dpo: 0, ccc: 0 };
   const b = currentSnapshot?.books || { ar: 0, ap: 0, inventory_units: 0, od_used: 0, od_limit: 0, gst_payable: 0 };
   const isLive = currentSnapshot?.mode === 'live';
-  const src = isLive ? 'SQLite' : 'Synthetic';
 
   return `
     <div class="cd-section">
       <div class="cd-head">
         <h2>Executive Financial Overview</h2>
-        <span class="cd-pill ${isLive ? 'live' : ''}">${isLive ? '● REAL OPENING BOOKS' : '○ SYNTHETIC MODEL'}</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span id="dashLLMBadge" class="cd-pill ${llmStatus.mode === 'on' ? 'live' : ''}">
+            ${llmStatus.mode === 'on' ? `LLM ON (${llmStatus.last_provider})` : 'LLM OFF - rule fallback'}
+          </span>
+          <span class="cd-pill ${isLive ? 'live' : ''}">${isLive ? '● REAL OPENING BOOKS' : '○ SYNTHETIC MODEL'}</span>
+        </div>
       </div>
       <div class="cd-kpi-grid">
         <div class="cd-card">
@@ -122,204 +161,104 @@ function renderOverview() {
         <div class="cd-card">
           <div class="kpi-tag"><span class="kpi-label">Receivables (AR)</span><span class="kpi-src">Profile</span></div>
           <div class="kpi-val">${inr(b.ar)}</div>
-          <div class="kpi-sub">DSO: ${m.dso ? m.dso.toFixed(0) : 0} days</div>
+          <div class="kpi-sub">DSO: ${m.dso ? m.dso.toFixed(1) : 0} days</div>
         </div>
         <div class="cd-card">
-          <div class="kpi-tag"><span class="kpi-label">Payables (AP)</span><span class="kpi-src">${src}</span></div>
+          <div class="kpi-tag"><span class="kpi-label">Payables (AP)</span><span class="kpi-src">SQLite</span></div>
           <div class="kpi-val">${inr(b.ap)}</div>
-          <div class="kpi-sub">DPO: ${m.dpo ? m.dpo.toFixed(0) : 0} days</div>
+          <div class="kpi-sub">DPO: ${m.dpo ? m.dpo.toFixed(1) : 0} days</div>
         </div>
         <div class="cd-card">
-          <div class="kpi-tag"><span class="kpi-label">Cash Conversion (CCC)</span><span class="kpi-src">Derived</span></div>
-          <div class="kpi-val">${m.ccc ? m.ccc.toFixed(0) : 0} days</div>
-          <div class="kpi-sub">DIO: ${m.dio ? m.dio.toFixed(0) : 0} days</div>
+          <div class="kpi-tag"><span class="kpi-label">Cash Conversion Cycle</span><span class="kpi-src">Derived</span></div>
+          <div class="kpi-val">${m.ccc ? m.ccc.toFixed(1) : 0} days</div>
+          <div class="kpi-sub">DIO: ${m.dio ? m.dio.toFixed(1) : 0} days</div>
         </div>
         <div class="cd-card">
-          <div class="kpi-tag"><span class="kpi-label">Inventory On Hand</span><span class="kpi-src">${src}</span></div>
-          <div class="kpi-val">${b.inventory_units.toLocaleString('en-IN')} units</div>
-          <div class="kpi-sub">Capacity: ${currentSnapshot?.constraints?.inventory_capacity_units || 6000} units</div>
+          <div class="kpi-tag"><span class="kpi-label">Inventory Units</span><span class="kpi-src">SQLite</span></div>
+          <div class="kpi-val">${b.inventory_units?.toLocaleString('en-IN') || 0}</div>
+          <div class="kpi-sub">Valued at ~${inr(currentLedger?.inventory?.unit_cost ? b.inventory_units * currentLedger.inventory.unit_cost : 0)}</div>
         </div>
         <div class="cd-card">
-          <div class="kpi-tag"><span class="kpi-label">GST Liability</span><span class="kpi-src">Profile</span></div>
+          <div class="kpi-tag"><span class="kpi-label">GST Payable</span><span class="kpi-src">Profile</span></div>
           <div class="kpi-val">${inr(b.gst_payable)}</div>
-          <div class="kpi-sub">Mandatory compliance dues</div>
+          <div class="kpi-sub">Statutory tax liability</div>
+        </div>
+      </div>
+
+      <div class="cd-card" style="margin-top:16px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--ink);">Quick Statutory Payment:</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span>Outstanding GST: <strong>${inr(b.gst_payable)}</strong></span>
+          <input id="inpGstAmount" type="number" placeholder="Amount (₹)" value="${b.gst_payable}" style="padding:4px 8px;font-family:inherit;font-size:12px;width:120px;">
+          <button id="btnPayGstQuick" class="cd-btn primary" style="background:#28a745;color:#fff;">Pay GST</button>
         </div>
       </div>
     </div>
   `;
+}
+
+function attachOverviewEvents() {
+  document.getElementById('btnPayGstQuick')?.addEventListener('click', async () => {
+    const val = Number(document.getElementById('inpGstAmount')?.value);
+    if (!val || val <= 0) return alert('Please enter a valid positive amount');
+    await callClientAction('pay_gst', { amount: val });
+  });
 }
 
 function renderARTable() {
-  const arList = currentLedger?.ar || [];
+  const ar = currentLedger?.ar || [];
+  const total = ar.reduce((s, r) => s + (r.amount || 0), 0);
+
   return `
     <div class="cd-section">
       <div class="cd-head">
-        <h2>Accounts Receivable (Customer Invoices)</h2>
-        <button id="btnAddAR" class="cd-btn-primary">+ Add Customer Invoice</button>
+        <h2>Accounts Receivable (AR)</h2>
+        <span class="cd-pill live">Total: ${inr(total)}</span>
       </div>
-      <table class="cd-table">
-        <thead>
-          <tr>
-            <th>Invoice ID</th>
-            <th>Customer Name</th>
-            <th style="text-align:right">Amount (₹)</th>
-            <th style="text-align:center">Issued Week</th>
-            <th style="text-align:center">Due Week</th>
-            <th style="text-align:center">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${arList.length ? arList.map((row, idx) => `
+      <p style="color:var(--grey);font-size:13px;margin:4px 0 16px 0;">
+        Pending client invoices. Click <strong>Mark Paid</strong> to record customer receipt (increases cash, reduces AR).
+      </p>
+
+      <div class="cd-card" style="margin-bottom:16px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--ink);">+ Add New Customer Receivable:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input id="newArId" placeholder="Invoice ID (e.g. INV-201)" style="padding:4px 8px;font-size:12px;width:120px;">
+          <input id="newArCust" placeholder="Customer Name" style="padding:4px 8px;font-size:12px;width:160px;">
+          <input id="newArAmt" type="number" placeholder="Amount (₹)" style="padding:4px 8px;font-size:12px;width:110px;">
+          <input id="newArDue" type="number" placeholder="Due Wk" value="4" style="padding:4px 8px;font-size:12px;width:70px;">
+          <button id="btnAddAr" class="cd-btn primary">+ Add to Books</button>
+        </div>
+      </div>
+
+      <div class="cd-card">
+        <table class="cd-table" id="arTable">
+          <thead>
             <tr>
-              <td><code>${esc(row.id)}</code></td>
-              <td>${esc(row.customer)}</td>
-              <td style="text-align:right"><b>${inr(row.amount)}</b></td>
-              <td style="text-align:center">Week ${row.issued}</td>
-              <td style="text-align:center"><span class="due-tag">Week ${row.due}</span></td>
-              <td style="text-align:center"><button class="cd-del-btn" data-type="ar" data-idx="${idx}">Delete</button></td>
+              <th>Invoice ID</th>
+              <th>Customer</th>
+              <th>Amount (₹)</th>
+              <th>Issued Wk</th>
+              <th>Due Wk</th>
+              <th>Action</th>
+              <th style="width:30px;"></th>
             </tr>
-          `).join('') : '<tr><td colspan="6" class="cd-empty">No receivables registered.</td></tr>'}
-        </tbody>
-      </table>
-      <div class="cd-save-bar">
-        <button id="btnSaveLedger" class="cd-btn-save">Save & Sync to Live Books</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderAPTable() {
-  const apList = currentLedger?.ap || [];
-  return `
-    <div class="cd-section">
-      <div class="cd-head">
-        <h2>Accounts Payable (Supplier Invoices)</h2>
-        <button id="btnAddAP" class="cd-btn-primary">+ Add Supplier Invoice</button>
-      </div>
-      <table class="cd-table">
-        <thead>
-          <tr>
-            <th>Invoice ID</th>
-            <th>Supplier Name</th>
-            <th style="text-align:right">Amount (₹)</th>
-            <th style="text-align:center">Issued Week</th>
-            <th style="text-align:center">Due Week</th>
-            <th style="text-align:center">MSME Vendor</th>
-            <th style="text-align:center">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${apList.length ? apList.map((row, idx) => `
-            <tr>
-              <td><code>${esc(row.id)}</code></td>
-              <td>${esc(row.supplier)}</td>
-              <td style="text-align:right"><b>${inr(row.amount)}</b></td>
-              <td style="text-align:center">Week ${row.issued}</td>
-              <td style="text-align:center">Week ${row.due}</td>
-              <td style="text-align:center"><span class="msme-badge ${row.msme ? 'yes' : 'no'}">${row.msme ? '✓ MSME (45-Day)' : 'Standard'}</span></td>
-              <td style="text-align:center"><button class="cd-del-btn" data-type="ap" data-idx="${idx}">Delete</button></td>
-            </tr>
-          `).join('') : '<tr><td colspan="7" class="cd-empty">No payables registered.</td></tr>'}
-        </tbody>
-      </table>
-      <div class="cd-save-bar">
-        <button id="btnSaveLedger" class="cd-btn-save">Save & Sync to Live Books</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderInventory() {
-  const inv = currentLedger?.inventory || { units: 3530, unit_cost: 320 };
-  return `
-    <div class="cd-section">
-      <div class="cd-head"><h2>Inventory & Warehouse Position</h2></div>
-      <div class="cd-kpi-grid" style="margin-bottom:20px">
-        <div class="cd-card">
-          <div class="kpi-label">Stock Units</div>
-          <div class="kpi-val">${inv.units.toLocaleString('en-IN')}</div>
-        </div>
-        <div class="cd-card">
-          <div class="kpi-label">Weighted Unit Cost</div>
-          <div class="kpi-val">${inr(inv.unit_cost)}</div>
-        </div>
-        <div class="cd-card">
-          <div class="kpi-label">Valuation on Books</div>
-          <div class="kpi-val">${inr(inv.units * inv.unit_cost)}</div>
-        </div>
-      </div>
-      <div class="cd-form-row">
-        <label>Update Current Stock Units: <input type="number" id="inpInvUnits" value="${inv.units}"></label>
-        <label>Update Unit Cost (₹): <input type="number" id="inpInvCost" value="${inv.unit_cost}"></label>
-        <button id="btnSaveInv" class="cd-btn-save" style="margin-top:auto">Apply Inventory</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderDecisions() {
-  const tasks = currentSnapshot?.tasks || [];
-  return `
-    <div class="cd-section">
-      <div class="cd-head">
-        <h2>Specialist Agent Proposals & Human Arbitration Overrides</h2>
-        <span class="cd-sub-note">Review LLM/Rule decisions. Human decisions override agent recommendations.</span>
-      </div>
-      <div class="cd-decisions-list">
-        ${tasks.length ? tasks.map(t => `
-          <div class="cd-decision-card ${t.state}">
-            <div class="d-top">
-              <span class="d-dept ${t.dept}">${esc(t.dept?.toUpperCase())}</span>
-              <span class="d-action">${esc(t.label || t.action_type)}</span>
-              <span class="d-src-badge ${t.source?.startsWith('llm') ? 'llm' : 'rule'}">${esc(t.source || 'rule-fallback')}</span>
-              <span class="sp"></span>
-              <span class="d-amt">${inr(t.amount_approved_inr ?? t.amount_inr)}</span>
-            </div>
-            <div class="d-mid">
-              <div class="d-reason">${esc(t.rationale || t.reason || 'Specialist recommendation')}</div>
-              <div class="d-meta">Confidence: <b>${Math.round((t.confidence || 0) * 100)}%</b> | Week: ${t.timing_week} | Cash Impact: <b>${inr(t.cash_impact_inr)}</b></div>
-            </div>
-            <div class="d-bottom">
-              <span class="d-status ${t.state}">Status: <b>${esc(t.state?.toUpperCase())}</b></span>
-              <span class="sp"></span>
-              <div class="d-actions">
-                <button class="btn-override-approve" data-id="${t.id}">Approve</button>
-                <button class="btn-override-reject" data-id="${t.id}">Reject</button>
-              </div>
-            </div>
-          </div>
-        `).join('') : '<div class="cd-empty">No decisions in current cycle. Click "RUN DECISION CYCLE" in Scenarios tab to generate proposals.</div>'}
-      </div>
-    </div>
-  `;
-}
-
-function renderScenarios() {
-  return `
-    <div class="cd-section">
-      <div class="cd-head"><h2>Market Stress Testing & Decision Engine</h2></div>
-      <div class="cd-card" style="padding:22px; max-width:800px">
-        <h3>Inject Market Shock or Custom Scenario</h3>
-        <p style="color:var(--grey); font-size:12px; margin: 8px 0 16px;">
-          Simulate supply chain bottlenecks, demand surges, or delayed payments. The Arbiter verifies whether cash buffers hold.
-        </p>
-        <div style="display:flex; gap:12px; margin-bottom:14px;">
-          <select id="selPresetScenario" style="padding:9px; border-radius:8px; border:1px solid var(--hairline); flex:1">
-            <option value="">Select Pre-configured Scenario...</option>
-            <option value="delayed_receivable">Delayed Receivable (4-week delay on largest customer)</option>
-            <option value="supplier_price_spike">Supplier Price Spike (+40% unit raw material cost)</option>
-            <option value="demand_surge">Demand Surge (+80% sales order intake)</option>
-            <option value="credit_limit_tightened">Credit Limit Tightened (Bank cuts OD by 50%)</option>
-          </select>
-          <button id="btnInjectPreset" class="cd-btn-primary">Inject Preset</button>
-        </div>
-        <div style="margin-top:20px;">
-          <label style="font-size:11px; font-weight:700; color:var(--grey); text-transform:uppercase">Custom Free-Text Scenario</label>
-          <textarea id="txtCustomScenario" style="width:100%; height:70px; margin-top:6px; padding:8px; border:1px solid var(--hairline); border-radius:8px; font-family:var(--ui)" placeholder="e.g. Major automotive client delayed payment of ₹1.4L by 3 weeks due to inventory audit..."></textarea>
-        </div>
-        <div style="display:flex; gap:12px; margin-top:20px; align-items:center">
-          <button id="btnRunDashCycle" class="cd-btn-run">RUN DECISION CYCLE (3D ANIMATED)</button>
-          <span style="font-size:12px; color:var(--grey)">Triggers 6 specialist LLM/Rule agents and updates books.</span>
+          </thead>
+          <tbody>
+            ${ar.length ? ar.map((row, idx) => `
+              <tr data-idx="${idx}">
+                <td><input class="ar-id" value="${esc(row.id || '')}"></td>
+                <td><input class="ar-cust" value="${esc(row.customer || '')}"></td>
+                <td><input class="ar-amt" type="number" value="${row.amount || 0}"></td>
+                <td><input class="ar-issued" type="number" value="${row.issued ?? 0}"></td>
+                <td><input class="ar-due" type="number" value="${row.due ?? 0}"></td>
+                <td><button class="cd-btn-sm btn-mark-paid" data-id="${esc(row.id)}" data-cust="${esc(row.customer)}" data-amt="${row.amount}">✓ Mark Paid</button></td>
+                <td><button class="cd-del-btn btn-del-ar" data-idx="${idx}">✕</button></td>
+              </tr>
+            `).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--grey);">No receivables in current ledger</td></tr>'}
+          </tbody>
+        </table>
+        <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;">
+          <button id="btnSaveAR" class="cd-btn primary">Save Changes to Ledger</button>
         </div>
       </div>
     </div>
@@ -327,75 +266,281 @@ function renderScenarios() {
 }
 
 function attachAREvents() {
-  document.getElementById('btnAddAR')?.addEventListener('click', () => {
-    const cust = prompt('Enter Customer Name:', 'New OEM Sub-tier');
-    if (!cust) return;
-    const amt = parseInt(prompt('Enter Invoice Amount (₹):', '50000'), 10);
-    if (!amt || amt <= 0) return alert('Invalid amount');
-    currentLedger.ar.push({
-      id: `AR_${Date.now().toString(36).toUpperCase()}`,
-      customer: cust,
-      amount: amt,
-      issued: 0,
-      due: 4
-    });
-    renderActiveTab();
+  document.getElementById('btnAddAr')?.addEventListener('click', async () => {
+    const id = document.getElementById('newArId')?.value?.trim();
+    const cust = document.getElementById('newArCust')?.value?.trim();
+    const amt = Number(document.getElementById('newArAmt')?.value);
+    const due = Number(document.getElementById('newArDue')?.value || 4);
+    if (!amt || amt <= 0) return alert('Please enter a positive amount');
+    await callClientAction('add_receivable', { id, customer: cust, amount: amt, due });
   });
 
-  document.querySelectorAll('.cd-del-btn[data-type="ar"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.idx, 10);
-      currentLedger.ar.splice(idx, 1);
-      renderActiveTab();
+  document.querySelectorAll('.btn-mark-paid').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const cust = btn.dataset.cust;
+      const amount = Number(btn.dataset.amt);
+      await callClientAction('mark_receivable_paid', { id, customer: cust, amount });
     });
   });
 
-  document.getElementById('btnSaveLedger')?.addEventListener('click', saveLedgerChanges);
-}
-
-function attachAPEvents() {
-  document.getElementById('btnAddAP')?.addEventListener('click', () => {
-    const supp = prompt('Enter Supplier Name:', 'Vendor Steel Ltd');
-    if (!supp) return;
-    const amt = parseInt(prompt('Enter Invoice Amount (₹):', '25000'), 10);
-    if (!amt || amt <= 0) return alert('Invalid amount');
-    const isMsme = confirm('Is this an MSME vendor? (Subject to 45-day statutory payment rule)');
-    currentLedger.ap.push({
-      id: `AP_${Date.now().toString(36).toUpperCase()}`,
-      supplier: supp,
-      amount: amt,
-      issued: 0,
-      due: 6,
-      msme: isMsme
-    });
-    renderActiveTab();
-  });
-
-  document.querySelectorAll('.cd-del-btn[data-type="ap"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.idx, 10);
-      currentLedger.ap.splice(idx, 1);
-      renderActiveTab();
+  document.querySelectorAll('.btn-del-ar').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = +e.target.dataset.idx;
+      if (currentLedger?.ar) {
+        currentLedger.ar.splice(idx, 1);
+        renderActiveTab();
+      }
     });
   });
 
-  document.getElementById('btnSaveLedger')?.addEventListener('click', saveLedgerChanges);
-}
-
-function attachInvEvents() {
-  document.getElementById('btnSaveInv')?.addEventListener('click', () => {
-    const u = parseInt(document.getElementById('inpInvUnits').value, 10);
-    const c = parseInt(document.getElementById('inpInvCost').value, 10);
-    if (isNaN(u) || u < 0 || isNaN(c) || c < 0) return alert('Please enter valid non-negative numbers');
-    currentLedger.inventory = { units: u, unit_cost: c };
+  document.getElementById('btnSaveAR')?.addEventListener('click', () => {
+    collectARFromDOM();
     saveLedgerChanges();
   });
 }
 
+function collectARFromDOM() {
+  const rows = document.querySelectorAll('#arTable tbody tr');
+  const items = [];
+  rows.forEach(r => {
+    const id = r.querySelector('.ar-id')?.value;
+    const customer = r.querySelector('.ar-cust')?.value;
+    const amount = Number(r.querySelector('.ar-amt')?.value || 0);
+    const issued = Number(r.querySelector('.ar-issued')?.value || 0);
+    const due = Number(r.querySelector('.ar-due')?.value || 0);
+    if (amount > 0) items.push({ id, customer, amount, issued, due });
+  });
+  if (currentLedger) currentLedger.ar = items;
+}
+
+function renderAPTable() {
+  const ap = currentLedger?.ap || [];
+  const total = ap.reduce((s, r) => s + (r.amount || 0), 0);
+
+  return `
+    <div class="cd-section">
+      <div class="cd-head">
+        <h2>Accounts Payable (AP)</h2>
+        <span class="cd-pill live">Total: ${inr(total)}</span>
+      </div>
+      <p style="color:var(--grey);font-size:13px;margin:4px 0 16px 0;">
+        Supplier bills & obligations. Click <strong>Pay Bill</strong> to settle invoice (reduces cash, reduces AP).
+      </p>
+
+      <div class="cd-card" style="margin-bottom:16px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--ink);">+ Add New Supplier Payable:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input id="newApId" placeholder="Bill ID (e.g. AP-301)" style="padding:4px 8px;font-size:12px;width:120px;">
+          <input id="newApSupp" placeholder="Supplier Name" style="padding:4px 8px;font-size:12px;width:160px;">
+          <input id="newApAmt" type="number" placeholder="Amount (₹)" style="padding:4px 8px;font-size:12px;width:110px;">
+          <input id="newApDue" type="number" placeholder="Due Wk" value="6" style="padding:4px 8px;font-size:12px;width:70px;">
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="newApMsme"> MSME Vendor</label>
+          <button id="btnAddAp" class="cd-btn primary">+ Add to Books</button>
+        </div>
+      </div>
+
+      <div class="cd-card">
+        <table class="cd-table" id="apTable">
+          <thead>
+            <tr>
+              <th>Invoice ID</th>
+              <th>Supplier</th>
+              <th>Amount (₹)</th>
+              <th>Issued Wk</th>
+              <th>Due Wk</th>
+              <th>MSME?</th>
+              <th>Action</th>
+              <th style="width:30px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ap.length ? ap.map((row, idx) => `
+              <tr data-idx="${idx}">
+                <td><input class="ap-id" value="${esc(row.id || '')}"></td>
+                <td><input class="ap-supp" value="${esc(row.supplier || '')}"></td>
+                <td><input class="ap-amt" type="number" value="${row.amount || 0}"></td>
+                <td><input class="ap-issued" type="number" value="${row.issued ?? 0}"></td>
+                <td><input class="ap-due" type="number" value="${row.due ?? 0}"></td>
+                <td style="text-align:center;"><input class="ap-msme" type="checkbox" ${row.msme ? 'checked' : ''}></td>
+                <td><button class="cd-btn-sm btn-pay-bill" data-id="${esc(row.id)}" data-supp="${esc(row.supplier)}" data-amt="${row.amount}">💳 Pay Bill</button></td>
+                <td><button class="cd-del-btn btn-del-ap" data-idx="${idx}">✕</button></td>
+              </tr>
+            `).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--grey);">No payables in current ledger</td></tr>'}
+          </tbody>
+        </table>
+        <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;">
+          <button id="btnSaveAP" class="cd-btn primary">Save Changes to Ledger</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function attachAPEvents() {
+  document.getElementById('btnAddAp')?.addEventListener('click', async () => {
+    const id = document.getElementById('newApId')?.value?.trim();
+    const supp = document.getElementById('newApSupp')?.value?.trim();
+    const amt = Number(document.getElementById('newApAmt')?.value);
+    const due = Number(document.getElementById('newApDue')?.value || 6);
+    const msme = document.getElementById('newApMsme')?.checked;
+    if (!amt || amt <= 0) return alert('Please enter a positive amount');
+    await callClientAction('add_payable', { id, supplier: supp, amount: amt, due, msme });
+  });
+
+  document.querySelectorAll('.btn-pay-bill').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const supp = btn.dataset.supp;
+      const amount = Number(btn.dataset.amt);
+      await callClientAction('pay_payable', { id, supplier: supp, amount });
+    });
+  });
+
+  document.querySelectorAll('.btn-del-ap').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = +e.target.dataset.idx;
+      if (currentLedger?.ap) {
+        currentLedger.ap.splice(idx, 1);
+        renderActiveTab();
+      }
+    });
+  });
+
+  document.getElementById('btnSaveAP')?.addEventListener('click', () => {
+    collectAPFromDOM();
+    saveLedgerChanges();
+  });
+}
+
+function collectAPFromDOM() {
+  const rows = document.querySelectorAll('#apTable tbody tr');
+  const items = [];
+  rows.forEach(r => {
+    const id = r.querySelector('.ap-id')?.value;
+    const supplier = r.querySelector('.ap-supp')?.value;
+    const amount = Number(r.querySelector('.ap-amt')?.value || 0);
+    const issued = Number(r.querySelector('.ap-issued')?.value || 0);
+    const due = Number(r.querySelector('.ap-due')?.value || 0);
+    const msme = r.querySelector('.ap-msme')?.checked || false;
+    if (amount > 0) items.push({ id, supplier, amount, issued, due, msme });
+  });
+  if (currentLedger) currentLedger.ap = items;
+}
+
+function renderInventory() {
+  const inv = currentLedger?.inventory || { units: 0, unit_cost: 0 };
+  const overrides = currentLedger?.sim_overrides || {};
+
+  return `
+    <div class="cd-section">
+      <div class="cd-head">
+        <h2>Inventory & Unit Economics</h2>
+        <span class="cd-pill live">Units: ${inv.units?.toLocaleString('en-IN') || 0}</span>
+      </div>
+      <div class="cd-card">
+        <div class="cd-form-grid">
+          <div class="cd-field">
+            <label>Current Stock (Units)</label>
+            <input id="invUnits" type="number" value="${inv.units || 0}">
+          </div>
+          <div class="cd-field">
+            <label>Weighted Unit Cost (₹)</label>
+            <input id="invUnitCost" type="number" value="${inv.unit_cost || 0}">
+          </div>
+          <div class="cd-field">
+            <label>Finished Goods Sale Price (₹)</label>
+            <input id="invPrice" type="number" value="${overrides.price || 520}">
+          </div>
+          <div class="cd-field">
+            <label>Weekly Demand Base (Units)</label>
+            <input id="invDemand" type="number" value="${overrides.base_demand_units || 150}">
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <button id="btnSaveInv" class="cd-btn primary">Save Inventory Parameters</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function attachInvEvents() {
+  document.getElementById('btnSaveInv')?.addEventListener('click', () => {
+    if (currentLedger) {
+      currentLedger.inventory = currentLedger.inventory || {};
+      currentLedger.sim_overrides = currentLedger.sim_overrides || {};
+      currentLedger.inventory.units = Number(document.getElementById('invUnits')?.value || 0);
+      currentLedger.inventory.unit_cost = Number(document.getElementById('invUnitCost')?.value || 0);
+      currentLedger.sim_overrides.price = Number(document.getElementById('invPrice')?.value || 520);
+      currentLedger.sim_overrides.base_demand_units = Number(document.getElementById('invDemand')?.value || 150);
+      saveLedgerChanges();
+    }
+  });
+}
+
+function renderDecisions() {
+  const tasks = currentSnapshot?.tasks || [];
+  const cycleWeek = currentSnapshot?.week || 0;
+
+  return `
+    <div class="cd-section">
+      <div class="cd-head">
+        <h2>Agent Discussion & Arbitration Timeline</h2>
+        <span class="cd-pill live">Cycle Week ${cycleWeek}</span>
+      </div>
+      <p style="color:var(--grey);font-size:13px;margin:4px 0 16px 0;">
+        Chronological audit of multi-agent recommendations, Arbiter conflict resolution, and deterministic verifier guardrails.
+      </p>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        ${tasks.length ? tasks.map(t => {
+          const isLlm = (t.source || '').startsWith('llm');
+          return `
+            <div class="cd-card" style="border-left:4px solid ${t.state === 'executed' || t.state === 'approved' ? '#28a745' : t.state === 'rejected' ? '#d9534f' : '#f0ad4e'};">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <span style="font-weight:700;font-size:13px;text-transform:uppercase;color:var(--ink);">${esc(t.dept)} (${esc(t.agent)})</span>
+                  <span class="source-badge ${isLlm ? 'llm' : 'rules'}">${esc(t.source || 'rule-fallback')}</span>
+                  <span style="font-size:11px;color:var(--grey);">Confidence: ${Math.round((t.confidence || 0) * 100)}%</span>
+                </div>
+                <div>
+                  <span class="state-pill ${t.state}">${esc(t.state?.toUpperCase() || 'PROPOSED')}</span>
+                </div>
+              </div>
+
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px;">
+                Action: <code>${esc(t.action_type)}</code> · Requested: ${inr(t.amount_inr)}
+                ${t.amount_approved_inr !== null && t.amount_approved_inr !== undefined ? `· Approved: <strong>${inr(t.amount_approved_inr)}</strong>` : ''}
+              </div>
+
+              <div style="font-size:12px;color:var(--grey);margin-bottom:6px;background:rgba(0,0,0,0.03);padding:6px 10px;border-radius:4px;">
+                <em>Agent Reasoning:</em> "${esc(t.rationale || 'Rule-based trigger')}"
+              </div>
+
+              ${t.reason ? `
+                <div style="font-size:12px;color:var(--ink);margin-bottom:6px;">
+                  <strong>Arbiter Verdict:</strong> ${esc(t.reason)}
+                  ${t.blocked_by?.length ? `<span style="color:#d9534f;margin-left:6px;">[Guardrail Block: ${esc(t.blocked_by.join(', '))}]</span>` : ''}
+                </div>
+              ` : ''}
+
+              <div style="display:flex;gap:6px;margin-top:8px;">
+                <button class="cd-btn-sm btn-override-app" data-id="${t.id}" style="color:#28a745;">✓ Force Approve</button>
+                <button class="cd-btn-sm btn-override-rej" data-id="${t.id}" style="color:#d9534f;">✕ Force Reject</button>
+              </div>
+            </div>
+          `;
+        }).join('') : '<div class="cd-card" style="text-align:center;color:var(--grey);">No proposals in current cycle. Run a decision cycle to see proposals.</div>'}
+      </div>
+    </div>
+  `;
+}
+
 function attachDecisionEvents() {
-  document.querySelectorAll('.btn-override-approve').forEach(b => {
-    b.addEventListener('click', async () => {
-      const id = b.dataset.id;
+  document.querySelectorAll('.btn-override-app').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
       await fetch('/api/msme/decision/override', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -406,9 +551,9 @@ function attachDecisionEvents() {
     });
   });
 
-  document.querySelectorAll('.btn-override-reject').forEach(b => {
-    b.addEventListener('click', async () => {
-      const id = b.dataset.id;
+  document.querySelectorAll('.btn-override-rej').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
       await fetch('/api/msme/decision/override', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -420,7 +565,75 @@ function attachDecisionEvents() {
   });
 }
 
+function renderScenarios() {
+  return `
+    <div class="cd-section">
+      <div class="cd-head">
+        <h2>Macro & Supply Chain Scenarios</h2>
+        <span class="cd-pill">ACTIVE: ${currentSnapshot?.scenario?.toUpperCase() || 'BASELINE'}</span>
+      </div>
+      <p style="color:var(--grey);font-size:13px;margin:4px 0 16px 0;">
+        Inject unpredictable financial shocks. The agents and Arbiter will adjust their recommendations to protect solvency.
+      </p>
+
+      <div class="cd-card" style="margin-bottom:16px;">
+        <div style="font-weight:600;font-size:14px;margin-bottom:6px;color:var(--ink);">Free-Text Custom Scenario Shock:</div>
+        <p style="font-size:12px;color:var(--grey);margin:0 0 10px 0;">
+          Describe any external crisis or event. This raw situation text is passed directly into the LLM prompts of all 6 department agents and the central Arbiter.
+        </p>
+        <textarea id="txtCustomScenario" rows="3" placeholder="Describe a situation (e.g. Major automotive OEM client requests 60-day credit extension, supplier raw material prices hike by 25%, flash flood delays logistics by 3 weeks)..." style="width:100%;font-family:inherit;font-size:13px;padding:8px;border:1px solid var(--hairline);border-radius:4px;box-sizing:border-box;"></textarea>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+          <button id="btnInjectCustom" class="cd-btn">INJECT SHOCK</button>
+          <button id="btnRunCustomCycle" class="cd-btn primary">⚡ INJECT & RUN CYCLE</button>
+        </div>
+      </div>
+
+      <div class="cd-card">
+        <div style="font-weight:600;font-size:14px;margin-bottom:6px;color:var(--ink);">Preset Macro Scenarios:</div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <select id="selPresetScenario" style="padding:6px 12px;font-family:inherit;font-size:13px;border:1px solid var(--hairline);border-radius:4px;">
+            <option value="">-- Choose Preset Scenario --</option>
+            <option value="delayed_receivable">Delayed Receivables (Big client holds payments)</option>
+            <option value="supplier_price_hike">Supplier Price Hike (Input raw material spike)</option>
+            <option value="demand_surge">Demand Surge (30% sudden sales spike)</option>
+            <option value="credit_limit_tightened">Credit Tightened (Bank slashes overdraft limit)</option>
+            <option value="revenue_shock">Revenue Shock (Order cancellations)</option>
+            <option value="cost_inflation">Cost Inflation (Utility & wage increases)</option>
+            <option value="compound_stress">Compound Stress (Simultaneous price spike & credit cut)</option>
+          </select>
+          <button id="btnInjectPreset" class="cd-btn">INJECT PRESET</button>
+          <button id="btnRunDashCycle" class="cd-btn primary">RUN DECISION CYCLE</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function attachScenarioEvents() {
+  document.getElementById('btnInjectCustom')?.addEventListener('click', async () => {
+    const text = document.getElementById('txtCustomScenario')?.value?.trim();
+    if (!text) return alert('Please enter scenario text');
+    await fetch('/api/msme/inject', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'custom', text })
+    });
+    alert('Injected custom shock: ' + text);
+    const res = await (await fetch('/api/msme/state')).json();
+    updateDashboardState(res);
+  });
+
+  document.getElementById('btnRunCustomCycle')?.addEventListener('click', async () => {
+    const text = document.getElementById('txtCustomScenario')?.value?.trim();
+    if (!text) return alert('Please enter scenario text');
+    await fetch('/api/msme/inject', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'custom', text })
+    });
+    runCycleWith3DTransition();
+  });
+
   document.getElementById('btnInjectPreset')?.addEventListener('click', async () => {
     const sel = document.getElementById('selPresetScenario');
     if (!sel.value) return alert('Please select a scenario first');
@@ -434,32 +647,129 @@ function attachScenarioEvents() {
     updateDashboardState(res);
   });
 
-  document.getElementById('btnRunDashCycle')?.addEventListener('click', async () => {
-    if (switchViewCallback) switchViewCallback('office');
-    const runBtn = document.querySelector('.pp-run');
-    if (runBtn) runBtn.click();
+  document.getElementById('btnRunDashCycle')?.addEventListener('click', () => {
+    runCycleWith3DTransition();
   });
 }
 
-async function saveLedgerChanges() {
-  try {
-    const res = await fetch('/api/msme/ledger/save', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(currentLedger)
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert('Validation Error: ' + (data.error || 'Failed to save ledger'));
-    } else {
-      alert('Ledger successfully saved and synced with live simulation state!');
-      updateDashboardState(data);
-    }
-  } catch (e) {
-    alert('Error saving ledger: ' + e.message);
-  }
+function runCycleWith3DTransition() {
+  if (switchViewCallback) switchViewCallback('office');
+  const runBtn = document.querySelector('.pp-run');
+  if (runBtn) runBtn.click();
+
+  // Return to dashboard after animation
+  setTimeout(async () => {
+    const res = await (await fetch('/api/msme/state')).json();
+    updateDashboardState(res);
+    if (switchViewCallback) switchViewCallback('dashboard');
+  }, 1800);
 }
 
+function renderChat() {
+  return `
+    <div class="cd-section">
+      <div class="cd-head">
+        <h2>Ask Your Finance Team</h2>
+        <span class="cd-pill ${llmStatus.mode === 'on' ? 'live' : ''}">
+          ${llmStatus.mode === 'on' ? `AI Active (${llmStatus.last_provider})` : 'Rules Mode'}
+        </span>
+      </div>
+      <p style="color:var(--grey);font-size:13px;margin:4px 0 16px 0;">
+        Converse directly with the multi-agent finance council. Ask about working capital, cash runway, trade credit decisions, or scenario readiness.
+      </p>
+
+      <div class="cd-card" style="margin-bottom:16px;max-height:450px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;" id="chatContainer">
+        ${chatHistory.length ? chatHistory.map(msg => `
+          <div style="display:flex;flex-direction:column;align-self:${msg.role === 'user' ? 'flex-end' : 'flex-start'};max-width:85%;background:${msg.role === 'user' ? 'var(--ink)' : 'rgba(0,0,0,0.04)'};color:${msg.role === 'user' ? '#fff' : 'inherit'};padding:10px 14px;border-radius:8px;">
+            <div style="font-size:11px;opacity:0.75;margin-bottom:3px;display:flex;justify-content:space-between;gap:8px;">
+              <span>${msg.role === 'user' ? 'Client' : 'Finance Advisory Council'}</span>
+              ${msg.source ? `<span class="source-badge ${msg.source.startsWith('llm') ? 'llm' : 'rules'}">${esc(msg.source)}</span>` : ''}
+            </div>
+            <div style="font-size:13px;line-height:1.45;white-space:pre-wrap;">${esc(msg.text)}</div>
+            ${msg.action ? `
+              <div style="margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.2);">
+                <button class="cd-btn-sm btn-confirm-chat-action" data-action='${JSON.stringify(msg.action)}' style="background:#28a745;color:#fff;font-weight:600;">
+                  ⚡ ${esc(msg.action.label || 'Confirm & Apply Suggested Action')}
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `).join('') : `
+          <div style="text-align:center;color:var(--grey);padding:30px 0;">
+            Ask questions like: <em>"Can we afford a ₹1.5 lakh inventory purchase?"</em> or <em>"What happens if our top customer delays payment?"</em>
+          </div>
+        `}
+      </div>
+
+      <div class="cd-card">
+        <div style="display:flex;gap:10px;">
+          <input id="inpChatQuestion" placeholder="Ask your finance team..." style="flex:1;padding:8px 12px;font-family:inherit;font-size:13px;border:1px solid var(--hairline);border-radius:4px;" ${isChatBusy ? 'disabled' : ''}>
+          <button id="btnSendChatQuestion" class="cd-btn primary" ${isChatBusy ? 'disabled' : ''}>
+            ${isChatBusy ? 'Thinking...' : 'SEND'}
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function attachChatEvents() {
+  const inp = document.getElementById('inpChatQuestion');
+  const sendBtn = document.getElementById('btnSendChatQuestion');
+
+  const doSend = async () => {
+    const q = inp?.value?.trim();
+    if (!q || isChatBusy) return;
+    chatHistory.push({ role: 'user', text: q });
+    isChatBusy = true;
+    renderActiveTab();
+
+    try {
+      const res = await fetch('/api/msme/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ question: q })
+      });
+      const data = await res.json();
+      chatHistory.push({
+        role: 'assistant',
+        text: data.answer || 'No answer returned',
+        source: data.source || 'rule-fallback',
+        action: data.suggested_action
+      });
+    } catch (e) {
+      chatHistory.push({ role: 'assistant', text: 'Error contacting finance team: ' + e.message, source: 'rule-fallback' });
+    } finally {
+      isChatBusy = false;
+      renderActiveTab();
+      const cont = document.getElementById('chatContainer');
+      if (cont) cont.scrollTop = cont.scrollHeight;
+    }
+  };
+
+  sendBtn?.addEventListener('click', doSend);
+  inp?.addEventListener('keydown', e => { if (e.key === 'Enter') doSend(); });
+
+  document.querySelectorAll('.btn-confirm-chat-action').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try {
+        const act = JSON.parse(btn.dataset.action);
+        if (act.type === 'inject_scenario') {
+          await fetch('/api/msme/inject', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ type: 'custom', text: act.text })
+          });
+          alert('Applied scenario: ' + act.text);
+          const stateRes = await (await fetch('/api/msme/state')).json();
+          updateDashboardState(stateRes);
+        }
+      } catch (err) {
+        alert('Action error: ' + err.message);
+      }
+    });
+  });
+}
 
 function renderDigitize() {
   const isBusy = digitizeState.loading;
@@ -553,7 +863,6 @@ function attachDigitizeEvents() {
   const parseBtn = document.getElementById('btnParseUploaded');
   const fileInput = document.getElementById('digFileInput');
 
-  // Sample document buttons
   document.getElementById('btnSampleB2B')?.addEventListener('click', async () => {
     runParseForSample('data/sample_documents/b2b_purchase_order.txt', 'b2b_purchase_order.txt');
   });
@@ -564,7 +873,6 @@ function attachDigitizeEvents() {
     runParseForSample('data/sample_documents/restaurant_bill_sample.txt', 'restaurant_bill_sample.txt');
   });
 
-  // Uploaded file parse
   parseBtn?.addEventListener('click', () => {
     if (!fileInput?.files?.length) return alert('Please select a file to digitize');
     const file = fileInput.files[0];
@@ -593,7 +901,6 @@ function attachDigitizeEvents() {
       };
       reader.readAsText(file);
     } else {
-      // Binary (PDF / Image) -> Base64
       reader.onload = async () => {
         try {
           const base64 = reader.result.split(',')[1];
@@ -614,7 +921,6 @@ function attachDigitizeEvents() {
     }
   });
 
-  // Table cell inputs change listener
   document.querySelectorAll('.dig-cell').forEach(inp => {
     inp.addEventListener('input', e => {
       const idx = +e.target.dataset.idx;
@@ -630,7 +936,6 @@ function attachDigitizeEvents() {
     });
   });
 
-  // Delete row
   document.querySelectorAll('.btn-del-dig').forEach(btn => {
     btn.addEventListener('click', e => {
       const idx = +e.target.dataset.idx;
@@ -639,7 +944,6 @@ function attachDigitizeEvents() {
     });
   });
 
-  // Add row
   document.getElementById('btnAddDigitizeRow')?.addEventListener('click', () => {
     const blank = {};
     digitizeState.columns.forEach(c => blank[c] = '');
@@ -647,7 +951,6 @@ function attachDigitizeEvents() {
     renderActiveTab();
   });
 
-  // Commit to books
   document.getElementById('btnCommitDigitized')?.addEventListener('click', async () => {
     if (!digitizeState.rows.length) return alert('No rows to commit');
     try {
@@ -689,9 +992,7 @@ async function runParseForSample(relPath, sampleName) {
 
     const sampleRes = await fetch('/' + relPath + '?t=' + Date.now());
     let content = '';
-    if (sampleRes.ok) {
-      content = await sampleRes.text();
-    }
+    if (sampleRes.ok) content = await sampleRes.text();
     const res = await fetch('/api/msme/digitize/parse', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -720,4 +1021,43 @@ function handleParseResponse(data, fallbackName) {
   digitizeState.error = null;
   digitizeState.successMsg = `Successfully parsed ${digitizeState.rows.length} records from ${digitizeState.filename}.`;
   renderActiveTab();
+}
+
+async function callClientAction(action, params) {
+  try {
+    const res = await fetch('/api/msme/client-action', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, params })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      alert('Action Failed: ' + (data.error || 'Unknown error'));
+    } else {
+      await fetchLedger();
+      updateDashboardState(data);
+      alert('✓ Action successfully recorded in books and synchronized with live ledger!');
+    }
+  } catch (e) {
+    alert('Error executing client action: ' + e.message);
+  }
+}
+
+async function saveLedgerChanges() {
+  try {
+    const res = await fetch('/api/msme/ledger/save', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(currentLedger)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Validation Error: ' + (data.error || 'Failed to save ledger'));
+    } else {
+      alert('Ledger successfully saved and synced with live simulation state!');
+      updateDashboardState(data);
+    }
+  } catch (e) {
+    alert('Error saving ledger: ' + e.message);
+  }
 }

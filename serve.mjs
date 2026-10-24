@@ -8,6 +8,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { loadConfig, ROOT } from './config.mjs';
 import { createSession } from './msme/session.mjs';
+import { getLLMStatus } from './msme/llm.mjs';
 import { DEPARTMENTS } from './msme/roster.mjs';
 
 const cfg = loadConfig();
@@ -33,6 +34,9 @@ const server = http.createServer(async (req, res) => {
 
     const op = url.pathname.slice('/api/msme/'.length);
     try {
+            if (op === 'llm-status' && req.method === 'GET') return json(res, 200, getLLMStatus());
+      if (op === 'chat' && req.method === 'POST') return json(res, 200, await session.chat(b));
+      if (op === 'client-action' && req.method === 'POST') return json(res, 200, session.executeClientAction(b));
       if (op === 'state' && req.method === 'GET') return json(res, 200, session.snapshot());
       if (op === 'audit' && req.method === 'GET') return json(res, 200, { records: session.readAudit(Math.min(+url.searchParams.get('limit') || 200, 2000)) });
       if (op === 'results' && req.method === 'GET') return json(res, 200, session.latestResults() || { none: true });

@@ -1,3 +1,5 @@
+import { validateLedger } from './live.mjs';
+import { callLLM, getLLMStatus } from './llm.mjs';
 // A live company for the UI: one seeded simulation the owner steps through a decision cycle at a time.
 // A cycle has three phases, and the UI's task statuses are these phases, not theatre:
 //   propose    each department agent proposes                      -> status "proposed"
@@ -138,11 +140,21 @@ export function createSession({ dataDir, p = PARAMS, live: defaultLive = false }
 
   async function cycle() { await propose(); await arbitrate(); return execute(); }
 
-  function inject(type) {
+  function inject(arg) {
     need();
-    if (!SCENARIOS.includes(type) || type === 'baseline') throw new Error('unknown scenario: ' + type);
-    const evs = makeEvents(type, activeP).map(e => ({ ...e, week: s.st.week, ...(e.until ? { until: s.st.week + (e.until - activeP.scenarios.event_week) } : {}) }));
-    s.st.events.push(...evs); s.injected.push({ week: s.st.week, type });
+    let type = typeof arg === 'string' ? arg : (arg?.type || 'custom');
+    let rawText = typeof arg === 'string' ? arg : (arg?.text || arg?.type || '');
+    if (type === 'baseline') throw new Error('cannot inject baseline');
+    if (SCENARIOS.includes(type)) {
+      const evs = makeEvents(type, activeP).map(e => ({ ...e, week: s.st.week, ...(e.until ? { until: s.st.week + (e.until - activeP.scenarios.event_week) } : {}) }));
+      s.st.events.push(...evs);
+      s.injected.push({ week: s.st.week, type, text: rawText });
+      s.activeScenarioText = rawText;
+    } else {
+      // Free-text arbitrary scenario injection
+      s.activeScenarioText = rawText || type;
+      s.injected.push({ week: s.st.week, type: 'custom', text: s.activeScenarioText });
+    }
     return snapshot();
   }
 
@@ -223,9 +235,170 @@ export function createSession({ dataDir, p = PARAMS, live: defaultLive = false }
     return snapshot();
   }
 
+  
+  async function chat({ question }) {
+    need();
+    const snap = snapshot();
+    const isLLMOn = process.env.LLM_MODE === 'on';
+    if (!isLLMOn) {
+      return {
+        answer: "LLM is currently OFF (mode: rule fallback). Current company status: Cash is ₹" + Math.round(snap.metrics.cash).toLocaleString('en-IN') + ", runway is " + (snap.metrics.runway || 0).toFixed(1) + " weeks, AR total is ₹" + Math.round(snap.books.ar).toLocaleString('en-IN') + ". Enable LLM_MODE=on in .env with a Groq or Gemini API key for active neural finance advisory.",
+        source: "rule-fallback",
+        suggested_action: null
+      };
+    }
+    const systemPrompt = `You are the executive finance advisory team for ${snap.session} (${snap.mode === 'live' ? 'Real Books' : 'Synthetic Company'}).
+Financial Snapshot:
+- Cash on Hand: ₹${Math.round(snap.metrics.cash)}
+- Overdraft: ₹${Math.round(snap.books.od_used)} used of ₹${Math.round(snap.books.od_limit)} limit
+- Receivables (AR): ₹${Math.round(snap.books.ar)}
+- Payables (AP): ₹${Math.round(snap.books.ap)}
+- Inventory Units: ${snap.books.inventory_units}
+- GST Payable: ₹${Math.round(snap.books.gst_payable)}
+- Recent Decisions: ${JSON.stringify(snap.tasks.map(t => ({ dept: t.dept, action: t.action_type, amt: t.amount_approved_inr, status: t.state, reason: t.reason })))}
+
+Answer the client's question concisely, strategically, and honestly. If appropriate, suggest a concrete scenario or client action.
+Return STRICT JSON ONLY:
+{
+  "answer": "Detailed helpful answer",
+  "suggested_action": {
+    "type": "inject_scenario", // or "record_event"
+    "text": "Scenario description to inject",
+    "label": "Button label for user confirmation"
+  } // or null if no action needed
+}`;
+    const userPrompt = `Client question: "${question}"`;
+    const res = await callLLM({ systemPrompt, userPrompt, schemaName: 'FinanceChat' });
+    if (!res) {
+      return {
+        answer: "Could not reach LLM provider. Current Cash: ₹" + Math.round(snap.metrics.cash).toLocaleString('en-IN') + ", Runway: " + (snap.metrics.runway || 0).toFixed(1) + " weeks.",
+        source: "rule-fallback",
+        suggested_action: null
+      };
+    }
+    try {
+      const parsed = JSON.parse(res.text);
+      return {
+        answer: parsed.answer || res.text,
+        suggested_action: parsed.suggested_action || null,
+        source: res.model
+      };
+    } catch {
+      return {
+        answer: res.text,
+        suggested_action: null,
+        source: res.model
+      };
+    }
+  }
+
+  function executeClientAction({ action, params }) {
+    need();
+    if (!ledgerFile) throw new Error('No ledger file available');
+    const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+    const auditRecord = {
+      ts: new Date().toISOString(),
+      action: `client:${action}`,
+      user: 'client_dashboard',
+      params
+    };
+
+    if (action === 'mark_receivable_paid') {
+      const idx = ledger.ar.findIndex(item => item.id === params.id || (item.customer === params.customer && item.amount === params.amount));
+      if (idx === -1) throw new Error('Receivable not found');
+      const paid = ledger.ar.splice(idx, 1)[0];
+      ledger.cash = Math.round(ledger.cash + paid.amount);
+      auditRecord.details = `Received payment of ₹${paid.amount} from ${paid.customer || paid.id}`;
+    } else if (action === 'pay_payable') {
+      const idx = ledger.ap.findIndex(item => item.id === params.id || (item.supplier === params.supplier && item.amount === params.amount));
+      if (idx === -1) throw new Error('Payable bill not found');
+      const bill = ledger.ap.splice(idx, 1)[0];
+      const available = ledger.cash + (ledger.od_limit - ledger.od_used);
+      if (available < bill.amount) {
+        throw new Error(`Insufficient funds: cash+OD available is ₹${available}, bill is ₹${bill.amount}`);
+      }
+      if (ledger.cash >= bill.amount) {
+        ledger.cash -= bill.amount;
+      } else {
+        const rem = bill.amount - ledger.cash;
+        ledger.cash = 0;
+        ledger.od_used += rem;
+      }
+      auditRecord.details = `Paid supplier bill of ₹${bill.amount} to ${bill.supplier || bill.id}`;
+    } else if (action === 'add_receivable') {
+      const amt = Math.round(Number(params.amount));
+      if (amt <= 0) throw new Error('Amount must be positive');
+      ledger.ar.push({
+        id: params.id || `AR-${Date.now().toString().slice(-4)}`,
+        customer: params.customer || 'New Customer',
+        amount: amt,
+        issued: params.issued !== undefined ? Number(params.issued) : 0,
+        due: params.due !== undefined ? Number(params.due) : 4
+      });
+      auditRecord.details = `Added receivable ₹${amt} from ${params.customer}`;
+    } else if (action === 'add_payable') {
+      const amt = Math.round(Number(params.amount));
+      if (amt <= 0) throw new Error('Amount must be positive');
+      ledger.ap.push({
+        id: params.id || `AP-${Date.now().toString().slice(-4)}`,
+        supplier: params.supplier || 'New Supplier',
+        amount: amt,
+        issued: params.issued !== undefined ? Number(params.issued) : 0,
+        due: params.due !== undefined ? Number(params.due) : 6,
+        msme: Boolean(params.msme)
+      });
+      auditRecord.details = `Added payable ₹${amt} to ${params.supplier}`;
+    } else if (action === 'pay_gst') {
+      const amt = Math.round(Number(params.amount));
+      if (amt <= 0) throw new Error('GST payment amount must be positive');
+      if (amt > ledger.gst_payable) throw new Error(`Payment ₹${amt} exceeds outstanding GST payable ₹${ledger.gst_payable}`);
+      const available = ledger.cash + (ledger.od_limit - ledger.od_used);
+      if (available < amt) throw new Error('Insufficient funds to pay GST');
+      if (ledger.cash >= amt) {
+        ledger.cash -= amt;
+      } else {
+        const rem = amt - ledger.cash;
+        ledger.cash = 0;
+        ledger.od_used += rem;
+      }
+      ledger.gst_payable -= amt;
+      auditRecord.details = `Recorded GST payment of ₹${amt}`;
+    } else {
+      throw new Error('Unknown client action: ' + action);
+    }
+
+    // Validate with real validateLedger
+    validateLedger(ledger);
+
+    // Persist to ledger.json
+    fs.writeFileSync(ledgerFile, JSON.stringify(ledger, null, 2), 'utf8');
+
+    // Sync to business_profile.json
+    const profPath = path.join(path.dirname(ledgerFile), 'business_profile.json');
+    if (fs.existsSync(profPath)) {
+      try {
+        const prof = JSON.parse(fs.readFileSync(profPath, 'utf8'));
+        prof.cash = ledger.cash;
+        prof.od_used = ledger.od_used;
+        prof.od_limit = ledger.od_limit;
+        prof.gst_payable = ledger.gst_payable;
+        prof.receivables = ledger.ar;
+        fs.writeFileSync(profPath, JSON.stringify(prof, null, 2), 'utf8');
+      } catch {}
+    }
+
+    // Append to audit log
+    if (auditFile) {
+      try {
+        fs.appendFileSync(auditFile, JSON.stringify(auditRecord) + '\n');
+      } catch {}
+    }
+
+    return reset({ seed: s ? s.seed : 1, scenario: s ? s.scenario : 'baseline', strategy: s ? s.strategy : 'constraint_aware', live: true });
+  }
+
   function saveLedger(payload) {
     if (!ledgerFile) throw new Error('No data directory configured');
-    const { validateLedger } = await_or_import_live();
     validateLedger(payload);
     fs.writeFileSync(ledgerFile, JSON.stringify(payload, null, 2), 'utf8');
 
@@ -247,18 +420,7 @@ export function createSession({ dataDir, p = PARAMS, live: defaultLive = false }
     return reset({ seed: s ? s.seed : 1, scenario: s ? s.scenario : 'baseline', strategy: s ? s.strategy : 'constraint_aware', live: true });
   }
 
-  function await_or_import_live() {
-    // Synchronous validator helper from live.mjs
-    return {
-      validateLedger: (ledger) => {
-        if (!ledger || typeof ledger !== 'object') throw new Error('Ledger must be an object');
-        if (typeof ledger.cash !== 'number' || ledger.cash < 0) throw new Error('Cash must be non-negative');
-        if (typeof ledger.od_limit !== 'number' || ledger.od_limit < 0) throw new Error('OD limit must be non-negative');
-        if (!Array.isArray(ledger.ap) || !Array.isArray(ledger.ar)) throw new Error('AP and AR must be arrays');
-        return true;
-      }
-    };
-  }
 
-  return { reset, propose, arbitrate, execute, cycle, inject, snapshot, readAudit, startExperiment, job, latestResults, overrideDecision, saveLedger };
+
+  return { reset, propose, arbitrate, execute, cycle, inject, snapshot, readAudit, startExperiment, job, latestResults, overrideDecision, saveLedger, executeClientAction, chat, getLLMStatus };
 }

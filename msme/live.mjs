@@ -35,6 +35,10 @@ export function validateLedger(ledger) {
     if (typeof item.issued !== 'number' || typeof item.due !== 'number') {
       throw new Error(`Invalid AP item at index ${i}: issued and due week must be numbers.`);
     }
+    if (item.date !== undefined && (!item.date || typeof item.date !== 'string' || !item.date.trim())) {
+      throw new Error(`Invalid AP item at index ${i}: missing or invalid invoice date.`);
+    }
+
   }
   if (!Array.isArray(ledger.ar)) {
     throw new Error('Invalid ledger ar: must be an array of receivables.');

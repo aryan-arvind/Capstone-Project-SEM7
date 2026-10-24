@@ -1,3 +1,5 @@
+import os from 'node:os';
+import fs from 'node:fs';
 ﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateLedger, initStateFromLedger } from '../msme/live.mjs';
@@ -90,4 +92,62 @@ test('live: session supports live reset and restores base params on normal reset
   const snapRestored = session.reset({ seed: 1, live: false });
   assert.equal(snapRestored.mode, 'synthetic');
   assert.notEqual(snapRestored.metrics.cash, 450000); // Back to base synthetic cash (1,600,000)
+});
+
+test('live: validateLedger rejects missing invoice date', () => {
+  const bad = {
+    cash: 500000,
+    od_limit: 200000,
+    od_used: 0,
+    inventory: { units: 100 },
+    ar: [],
+    ap: [{ amount: 1000, issued: 0, due: 6, date: '' }]
+  };
+  assert.throws(() => validateLedger(bad), /date/i);
+});
+
+test('live: session.saveLedger rejects negative cash with real validateLedger', () => {
+  const dataDir = path.join(ROOT, 'data');
+  const session = createSession({ dataDir });
+  session.reset({ live: true });
+  const bad = {
+    cash: -5000,
+    od_limit: 200000,
+    od_used: 0,
+    inventory: { units: 100 },
+    ar: [],
+    ap: []
+  };
+  assert.throws(() => session.saveLedger(bad), /cash/i);
+});
+
+test('live: mark-paid client action updates cash and reduces AR', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'msme-action-test-'));
+  try {
+    fs.copyFileSync(path.join(ROOT, 'data', 'ledger.json'), path.join(tmpDir, 'ledger.json'));
+    if (fs.existsSync(path.join(ROOT, 'data', 'business_profile.json'))) {
+      fs.copyFileSync(path.join(ROOT, 'data', 'business_profile.json'), path.join(tmpDir, 'business_profile.json'));
+    }
+    const session = createSession({ dataDir: tmpDir });
+    session.reset({ live: true });
+    // Add test receivable
+    session.executeClientAction({
+      action: 'add_receivable',
+      params: { id: 'TEST-REC-99', customer: 'Test Client', amount: 50000, issued: 0, due: 4 }
+    });
+    const snapAfterAdd = session.snapshot();
+    const cashBeforePay = snapAfterAdd.metrics.cash;
+    const arBeforePay = snapAfterAdd.books.ar;
+
+    // Mark receivable paid
+    session.executeClientAction({
+      action: 'mark_receivable_paid',
+      params: { id: 'TEST-REC-99' }
+    });
+    const snapFinal = session.snapshot();
+    assert.equal(snapFinal.metrics.cash, cashBeforePay + 50000);
+    assert.equal(snapFinal.books.ar, arBeforePay - 50000);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { loadConfig, ROOT } from '../config.mjs';
 import { createSession } from '../msme/session.mjs';
+import { getLLMStatus } from '../msme/llm.mjs';
 import { DEPARTMENTS } from '../msme/roster.mjs';
 
 const cfg = loadConfig();
@@ -49,6 +50,9 @@ export default async function handler(req, res) {
     const op = segments.slice(1).join('/');
     const url = new URL(req.url, 'http://localhost');
     try {
+            if (op === 'llm-status' && req.method === 'GET') return sendJson(res, 200, getLLMStatus());
+      if (op === 'chat' && req.method === 'POST') return sendJson(res, 200, await session.chat(b));
+      if (op === 'client-action' && req.method === 'POST') return sendJson(res, 200, session.executeClientAction(b));
       if (op === 'state' && req.method === 'GET') return sendJson(res, 200, session.snapshot());
       if (op === 'audit' && req.method === 'GET') {
         const limit = Math.min(+url.searchParams.get('limit') || 200, 2000);

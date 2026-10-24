@@ -1,8 +1,38 @@
-// Provider adapter for Real LLM agents with fallback.
-// Priority: Groq (Llama 3.3 70B) -> Gemini (gemini-2.5-flash) -> Rule-based fallback.
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from '../config.mjs';
+import crypto from 'node:crypto';
+
+let lastProvider = 'none';
+let fallbackCount = 0;
+
+export function getLLMStatus() {
+  const isLLMOn = process.env.LLM_MODE === 'on';
+  const groqKey = !!process.env.GROQ_API_KEY;
+  const geminiKey = !!process.env.GEMINI_API_KEY;
+  let prov = lastProvider;
+  if (prov === 'none') {
+    prov = isLLMOn ? (groqKey ? 'groq' : (geminiKey ? 'gemini' : 'rule-fallback')) : 'rule-fallback';
+  }
+  return {
+    mode: isLLMOn ? 'on' : 'off',
+    groq_key_present: groqKey,
+    gemini_key_present: geminiKey,
+    last_provider: prov,
+    fallback_count: fallbackCount
+  };
+}
+
+function hashSnapshot(snap) {
+  if (!snap) return '0';
+  try {
+    return crypto.createHash('md5').update(JSON.stringify(snap)).digest('hex').slice(0, 8);
+  } catch {
+    return '0';
+  }
+}
+// Provider adapter for Real LLM agents with fallback.
+// Priority: Groq (Llama 3.3 70B) -> Gemini (gemini-2.5-flash) -> Rule-based fallback.
 
 // Simple dotenv-style loader
 export function loadEnv() {
@@ -87,6 +117,10 @@ export async function callLLM({ systemPrompt, userPrompt, schemaName, mockHandle
     return mockHandler({ systemPrompt, userPrompt });
   }
 
+  if (process.env.LLM_MODE !== 'on') {
+    return null;
+  }
+
   const groqKey = process.env.GROQ_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
 
@@ -113,6 +147,7 @@ export async function callLLM({ systemPrompt, userPrompt, schemaName, mockHandle
       const data = await res.json();
       const content = data?.choices?.[0]?.message?.content;
       if (content) {
+        lastProvider = 'groq';
         return { text: content, model: 'llm:llama-3.3-70b' };
       }
     } catch (e) {
@@ -144,6 +179,7 @@ export async function callLLM({ systemPrompt, userPrompt, schemaName, mockHandle
       const data = await res.json();
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) {
+        lastProvider = 'gemini';
         return { text, model: 'llm:gemini-2.5-flash' };
       }
     } catch (e) {
@@ -151,18 +187,23 @@ export async function callLLM({ systemPrompt, userPrompt, schemaName, mockHandle
     }
   }
 
+  fallbackCount++;
+  lastProvider = 'rule-fallback';
   return null;
 }
 
-export function getCachedResponse(scenario, week, key) {
+export function getCachedResponse(scenario, week, key, ledgerSnapshot = null) {
   const cache = loadCache();
-  const cKey = `${scenario || 'baseline'}:w${week}:${key}`;
+  const h = hashSnapshot(ledgerSnapshot);
+  const cKey = `${scenario || 'baseline'}:w${week}:${h}:${key}`;
   return cache[cKey] || null;
 }
 
-export function setCachedResponse(scenario, week, key, value) {
+export function setCachedResponse(scenario, week, key, value, ledgerSnapshot = null) {
   const cache = loadCache();
-  const cKey = `${scenario || 'baseline'}:w${week}:${key}`;
+  const h = hashSnapshot(ledgerSnapshot);
+  const cKey = `${scenario || 'baseline'}:w${week}:${h}:${key}`;
   cache[cKey] = value;
   saveCache();
 }
+
